@@ -75,9 +75,11 @@ Runs B, sp_case60_narrow:
 | classic_one_at_a_time | on / off | yes | 7 / 7 |
 
 The guard acts in the active-set strategy only (the classic runs report no
-guarded bus). With the two machines fixed as PQ injections at the middle of
-their band (4.75 Mvar) instead of the guard, the case converges in 4
-iterations.
+guarded bus). It runs both machines as PQ at the middle of their band
+(4.75 Mvar). Without the guard, generator 160 stays PV inside its band. Run
+as PQ through `power_flow.qlimits.lock_pv_to_pq_buses` instead of the guard,
+generator 159 alone converges (5 iterations), generator 160 alone and both
+together do not (80 iterations).
 
 Figures: `results/fig5a_voltage_profile.png` (main figure, case14_zeng,
 selected by the rule in `compare.jl`), `results/fig5b_narrow_guard.png`.
