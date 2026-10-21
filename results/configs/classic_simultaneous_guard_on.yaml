@@ -1,0 +1,40 @@
+# Settings of every run: the solver settings of the Zeng/Chiang cases shipped
+# with Sparlectra (data/scf/case14_zeng_p306_*.config.yaml), with every
+# automatic machinery off (rescue, auto mode, damping, start projection,
+# APSLF start, merit, trust region). The strategy and the guard are set per
+# run in run_compare.jl.
+config_version: 1
+power_flow:
+  apslf_start:
+    enabled: false
+  autodamp: false
+  dc:
+    fallback: false
+  distributed_slack:
+    enabled: false
+  external_grid:
+    enabled: false
+  linear_solver: umfpack_reuse
+  max_iter: 80
+  merit:
+    enabled: false
+    fallback_max_mismatch: false
+  mode: manual
+  qlimits:
+    enabled: true
+    enforcement_mode: classic_simultaneous
+    guard:
+      enabled: true
+  rescue: false
+  solver: rectangular
+  start_current_iteration:
+    enabled: false
+  start_mode:
+    angle_mode: classic
+    start_projection: false
+    dc_seed_unconditional: false
+    voltage_mode: classic
+  tol: 1.0e-6
+  trust_region:
+    enabled: false
+  wrong_branch_detection: "off"

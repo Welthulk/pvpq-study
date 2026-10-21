@@ -1,0 +1,5 @@
+runs A: largest max |dU| 0.011846 pu (case14_zeng, active_set/guard_true against classic_simultaneous/guard_true)
+runs A: pairs with another bus type: 3
+rule: max |dU| > 0.005 pu or a bus type differs -> figure 5a is the main figure, else 5b
+main figure: 5a
+figure 5a case: case14_zeng
