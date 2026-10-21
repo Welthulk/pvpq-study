@@ -1,0 +1,4 @@
+locked_buses,names,converged,iterations
+11,Birkkamp_110,true,5
+25,Westtal_110,false,80
+11 25,Birkkamp_110 Westtal_110,false,80

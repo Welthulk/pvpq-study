@@ -139,6 +139,21 @@ function main()
     write_rows(joinpath(RESULTS, "solutions", "sp_case60_narrow_$(s)_guard_$(g ? "on" : "off").csv"), sol)
   end
   write_rows(joinpath(RESULTS, "runs.csv"), rows)
+  # check of runs B without the guard: the narrow-band buses run as PQ
+  # through power_flow.qlimits.lock_pv_to_pq_buses (internal bus positions
+  # of generators 159 and 160), at their scheduled Q clamped into the band
+  lock_rows = []
+  for buses in ([11], [25], [11, 25])
+    f = run_config("active_set", false)
+    write(f, replace(read(f, String), "    guard:\n      enabled: false" => "    guard:\n      enabled: false\n    lock_pv_to_pq_buses: [$(join(buses, ", "))]"))
+    cfg = load_sparlectra_config(f)
+    net = redirect_stdout(() -> importSCF(joinpath(CASES, "sp_case60_narrow.scf.json")), devnull)
+    res = redirect_stdout(() -> run_sparlectra(net = net, config = cfg), devnull)
+    push!(lock_rows, (locked_buses = join(buses, " "), names = join([net.nodeVec[b].comp.cName for b in buses], " "), converged = res.final_converged, iterations = res.iterations))
+  end
+  rm(joinpath(RESULTS, "configs", "active_set_guard_off.yaml"))
+  run_config("active_set", false)
+  write_rows(joinpath(RESULTS, "narrow_lock.csv"), lock_rows)
   println("run_compare: ", length(rows), " runs, results/runs.csv")
 end
 
