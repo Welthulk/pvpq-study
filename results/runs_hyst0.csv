@@ -1,0 +1,7 @@
+case,strategy,guard,converged,iterations,switching_rounds,pv_pq_events,cycle,oscillating_buses,narrow_band_pv_buses,guarded,control_status,pv_to_pq,slack_p_MW,slack_q_MVar,loss_MW,reason,viol_a,viol_b,viol_c,inconsistent_buses,qv_min_eig
+case14_zeng,active_set,true,true,7,2,6,false,0,0,0,none,3,-0.365287983,22.4721769,21.9447121,none,0,0,0,0,0.856476825
+case14_zeng,classic_simultaneous,true,true,9,0,4,false,0,0,0,none,4,-0.803668847,18.4216608,21.5063311,none,3,0,0,3,0.103160254
+case14_zeng,classic_one_at_a_time,true,true,14,0,3,false,0,0,0,none,3,-0.365287926,22.472177,21.9447121,none,0,0,0,0,0.856476825
+sp_case60_narrow,active_set,true,true,4,1,2,false,0,2,0,disabled,0,-11.4972441,23.1588069,11.5027561,none,0,0,0,0,0.00702759203
+sp_case60_narrow,classic_simultaneous,true,true,5,0,2,false,0,2,0,disabled,0,-11.4972441,23.1588069,11.5027561,none,0,0,0,0,0.00702759203
+sp_case60_narrow,classic_one_at_a_time,true,true,8,0,2,false,0,2,0,disabled,0,-11.4972441,23.1588071,11.5027561,none,0,0,0,0,0.00702759182

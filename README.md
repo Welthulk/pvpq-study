@@ -45,7 +45,12 @@ sp_case60_narrow: two 40 MW machines (Birkkamp_110, Westtal_110) get a band
 of 4.0 to 5.5 Mvar but would need 7.26 and 5.71 Mvar at their set points.
 The active set ends with both at 5.5 Mvar below their set points. The
 classic strategies keep Westtal_110 at 1.02 pu with 6.14 Mvar, inside
-their Q hysteresis of 0.01 pu.
+their Q hysteresis of 0.01 pu. With hysteresis 0 (`hyst0.jl`) both classic
+strategies reach the active set solution (Westtal_110 at 5.5 Mvar and
+0.98833 pu), and on case14_zeng `classic_one_at_a_time` ends in 14
+iterations with bus 6 PQ at 24.000 Mvar and 1.06866 pu. At commit a3cd5bc9
+`power_flow.qlimits.hysteresis_pu` does not take effect on an imported net
+(fixed in 0.60.0), so the script sets the values on the net.
 
 ## 3. Characteristics instead of switching
 

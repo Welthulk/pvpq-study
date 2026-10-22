@@ -8,7 +8,8 @@ Every file, setting and run of the study. The short version is the
 | File | Content |
 |---|---|
 | `run_compare.jl` | one network, three strategies, same start values and tolerance; one CSV line per run (`results/runs.csv`), the final solution of every run (`results/solutions/`), the band of the narrow band case (`results/sp_case60_narrow.txt`), the lock list check (`results/narrow_lock.csv`) and the physical check of every solution (`results/consistency.csv`) |
-| `admissibility.jl` | the physical check, called by `run_compare.jl` for every solved run |
+| `admissibility.jl` | the physical check, called by `run_compare.jl` and `hyst0.jl` for every solved run |
+| `hyst0.jl` | case14_zeng and sp_case60_narrow with Q hysteresis 0, set on the net, three strategies with the guard (`results/runs_hyst0.csv`, columns of `runs.csv`; `results/consistency_hyst0.csv`, columns of `consistency.csv`) |
 | `compare.jl` | pairwise comparison of the final solutions (`results/pairs.csv`) and the decision rule for the main figure (`results/decision.txt`) |
 | `softpv.jl` | Q(U) droop, P(U) and Soft-PV after Kataoka instead of the voltage regulator of chosen generators (`results/runs_softpv.csv`, `results/stability_softpv.csv`, `results/frozen_softpv.txt`, `results/solutions/softpv/`, `results/softpv_bands.txt`) |
 | `compare_softpv.jl` | Q(U) solutions against the switched ones (`results/pairs_softpv.csv`, `results/h2_softpv.txt`) |
@@ -123,22 +124,27 @@ The classic strategies accept a Q overshoot below the hysteresis of 0.01 pu
 (1 Mvar at 100 MVA). Westtal_110 under classic_simultaneous (0.636 Mvar
 above its limit) and bus 6 of case14_zeng under classic_one_at_a_time
 (0.678 Mvar above its limit of 24 Mvar) stay PV for this reason, and the
-final Q check of the solver reports `within_hysteresis`. The classic loop and the final check read the
-hysteresis from the net (`net.q_hyst_pu`, `net.final_q_accept_pu`, import
-defaults 0.01 and 0.02 pu). Setting `power_flow.qlimits.hysteresis_pu: 0`
-in the config passed to `run_sparlectra` alone changes nothing: these runs
-come out like the committed rows of `runs.csv` and `consistency.csv`. With
-both net fields also set to 0:
+final Q check of the solver reports `within_hysteresis`. The classic loop
+and the final check read the hysteresis from the net (`net.q_hyst_pu`,
+`net.final_q_accept_pu`, import values 0.01 and 0.02 pu). At commit
+a3cd5bc9 `power_flow.qlimits.hysteresis_pu` and `final_q_accept_pu` in the
+config passed to `run_sparlectra` do not reach an imported net; this is
+fixed in 0.60.0. `hyst0.jl` therefore sets both net fields to 0 before the
+solve (`results/runs_hyst0.csv`, `results/consistency_hyst0.csv`):
 
-- case14_zeng, classic_one_at_a_time: 14 iterations, bus 6 at 24 Mvar
-  (1.0687 pu), slack Q 22.472 Mvar, the active set solution; final check ok.
-- sp_case60_narrow, classic_simultaneous: 5 iterations, both machines at
-  5.5 Mvar (0.9966 and 0.9883 pu), slack Q 23.159 Mvar, the active set
-  solution; final check ok.
+- case14_zeng, classic_one_at_a_time: 14 iterations, bus 6 PQ at
+  24.000 Mvar and 1.06866 pu, slack Q 22.472 Mvar, the active set solution,
+  no violation.
+- case14_zeng, classic_simultaneous: unchanged (9 iterations, buses 2, 3
+  and 6 at Q_max above their set points); the overshoot is not the cause
+  there.
+- sp_case60_narrow, classic_simultaneous (5 iterations) and
+  classic_one_at_a_time (8 iterations): both machines at 5.5 Mvar
+  (Birkkamp_110 0.99663 pu, Westtal_110 0.98833 pu), slack Q 23.159 Mvar,
+  the active set solution, no violation.
+- active_set: unchanged on both networks.
 
-These runs are not part of `reproduce.jl`. Not run with hysteresis 0:
-classic_simultaneous on case14_zeng, classic_one_at_a_time on
-sp_case60_narrow, sp_case118.
+Not run with hysteresis 0: sp_case14, sp_case118.
 
 ## Admissibility check
 
