@@ -18,6 +18,7 @@ N-band   -         dU 0.5      start uset : max |dU| active_set to classic_simul
 N-band   -         dU 1        start uset : max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
 N-band   -         dU 2        start uset : max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
 N-band   -         dU 5        start uset : max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
+118-all  -         dU 0.5      start uset  damped: max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
 118-all  -         dU 1        start uset  damped: max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
 K-zall   -         in 0.1 c 1  start uset : max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
 K-zall   -         in 0.1 c 2  start uset : max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
@@ -60,17 +61,19 @@ dU %    active_set (0)                classic_simultaneous (2)      classic_one_
 
 Kataoka: Soft-PV (four points: PV inside the band, corners with 10 % of the band over dU_c).
 Run: active_set, start uset, damped only where the undamped run did not converge.
-H5: the Soft-PV solution is nearer to active_set than every Q(U) droop of the same network,
-and |U - U_set| < dU_in at every bus in the middle segment. "equal": both distances below 1e-6 pu, the solver tolerance.
+H5: the Soft-PV solution is nearer to active_set than every Q(U) droop of the same network.
+"equal": both distances below 1e-6 pu, the solver tolerance.
+held: machines at U_set (within 1e-6 pu) in the switched active_set solution; mid: of these, in the middle
+segment of Soft-PV; mid, not held: in the middle segment although switched active_set has them at a Q limit.
 
 K-zall (case14_zeng), nearest droop to active_set: dU 0.5 % with 0.005038 pu; droop dU 0.5 %: 5 iterations
-in % c %    active_set (0)              classic_simultaneous (3)    classic_one_at_a_time (1)   nearest               H5    iterations as/cs/co               PV/PQ events
-0.1 1       0.007590                    0.019001                    0.008932                    active_set            no    5/5/5                             0
-0.1 2       0.012178                    0.023866                    0.013364                    active_set            no    5/5/5                             0
-0.1 5       0.412718                    0.424406                    0.412871                    active_set            no    13/13/13                          0
-0.05 1      0.007263                    0.018742                    0.008606                    active_set            no    6/6/6                             0
-0.05 2      0.011886                    0.023574                    0.013083                    active_set            no    5/5/5                             0
-0.05 5      0.412718                    0.424406                    0.412871                    active_set            no    13/13/13                          0
+in % c %    active_set (0)              classic_simultaneous (3)    classic_one_at_a_time (1)   nearest               H5    iterations as/cs/co               PV/PQ events  held/mid/mid, not held
+0.1 1       0.007590                    0.019001                    0.008932                    active_set            no    5/5/5                             0             1/0/0
+0.1 2       0.012178                    0.023866                    0.013364                    active_set            no    5/5/5                             0             1/0/0
+0.1 5       0.412718                    0.424406                    0.412871                    active_set            no    13/13/13                          0             1/0/0
+0.05 1      0.007263                    0.018742                    0.008606                    active_set            no    6/6/6                             0             1/0/0
+0.05 2      0.011886                    0.023574                    0.013083                    active_set            no    5/5/5                             0             1/0/0
+0.05 5      0.412718                    0.424406                    0.412871                    active_set            no    13/13/13                          0             1/0/0
 per bus (active_set): bus name position |U - U_set| pu, dU_in pu, Q Mvar, dU/dQ off/on
   in 0.1 c 1:
        1 Bus_1_1        corner_min 0.006118  0.001060      2.614     1.184 /    0.076
@@ -104,13 +107,13 @@ per bus (active_set): bus name position |U - U_set| pu, dU_in pu, Q Mvar, dU/dQ 
        6 Bus_6_1        clamp_max  0.366383  0.000535     24.000     0.092 /    0.092
 
 K-nband (sp_case60_narrow), nearest droop to active_set: dU 1 % with 0.000000 pu; droop dU 0.5 %: 6 iterations
-in % c %    active_set (0)              classic_simultaneous (1)    classic_one_at_a_time (1)   nearest               H5    iterations as/cs/co               PV/PQ events
-0.1 1       0.000000                    0.033317                    0.033317                    active_set            equal 7/-/-                             0
-0.1 2       0.000821                    0.034138                    0.034138                    active_set            no    6/-/-                             0
-0.1 5       0.004585                    0.037903                    0.037903                    active_set            no    6/-/-                             0
-0.05 1      0.000000                    0.033317                    0.033317                    active_set            equal 6/-/-                             0
-0.05 2      0.000768                    0.034085                    0.034085                    active_set            no    6/-/-                             0
-0.05 5      0.004485                    0.037802                    0.037802                    active_set            no    6/-/-                             0
+in % c %    active_set (0)              classic_simultaneous (1)    classic_one_at_a_time (1)   nearest               H5    iterations as/cs/co               PV/PQ events  held/mid/mid, not held
+0.1 1       0.000000                    0.033317                    0.033317                    active_set            equal 7/-/-                             0             0/0/0
+0.1 2       0.000821                    0.034138                    0.034138                    active_set            no    6/-/-                             0             0/0/0
+0.1 5       0.004585                    0.037903                    0.037903                    active_set            no    6/-/-                             0             0/0/0
+0.05 1      0.000000                    0.033317                    0.033317                    active_set            equal 6/-/-                             0             0/0/0
+0.05 2      0.000768                    0.034085                    0.034085                    active_set            no    6/-/-                             0             0/0/0
+0.05 5      0.004485                    0.037802                    0.037802                    active_set            no    6/-/-                             0             0/0/0
 per bus (active_set): bus name position |U - U_set| pu, dU_in pu, Q Mvar, dU/dQ off/on
   in 0.1 c 1:
       11 Birkkamp_110   clamp_max  0.013365  0.001010      5.500     0.685 /    0.688
@@ -131,9 +134,9 @@ per bus (active_set): bus name position |U - U_set| pu, dU_in pu, Q Mvar, dU/dQ 
       11 Birkkamp_110   corner_max 0.014679  0.000505      5.392     0.700 /    0.645
       25 Westtal_110    corner_max 0.035928  0.000510      5.454     5.870 /    5.104
 
-K-118 (sp_case118), nearest droop to active_set: dU 1 % with 0.005399 pu damped; droop dU 1 %: 49 damped iterations
-in % c %    active_set (0)              classic_simultaneous (0)    classic_one_at_a_time (0)   nearest               H5    iterations as/cs/co               PV/PQ events
-0.1 2       0.001910 damped             0.001910 damped             0.001910 damped             active_set            yes   6 damped/6 damped/6 damped        0
+K-118 (sp_case118), nearest droop to active_set: dU 0.5 % with 0.002955 pu damped; droop dU 0.5 %: 49 damped iterations
+in % c %    active_set (0)              classic_simultaneous (0)    classic_one_at_a_time (0)   nearest               H5    iterations as/cs/co               PV/PQ events  held/mid/mid, not held
+0.1 2       0.001910 damped             0.001910 damped             0.001910 damped             active_set            yes   6 damped/6 damped/6 damped        0             43/43/3
 per bus (active_set): bus name position |U - U_set| pu, dU_in pu, Q Mvar, dU/dQ off/on
   in 0.1 c 2 damped:
        4 4              corner_max 0.006549  0.001015     22.090    -0.946 /    0.027

@@ -35,8 +35,10 @@ selected by the rule in `compare.jl`, `decision.txt`),
 
 ## Settings
 
-Rectangular Newton-Raphson, tolerance 1e-6 pu, at most 80 iterations,
-classic start, every automatic aid off (rescue, start projection, automatic
+Rectangular Newton-Raphson, tolerance 1e-6 pu, at most 80 iterations per
+Newton solve (the classic strategies restart Newton after each switching
+pass, and `iterations` sums all passes, so a failed classic run can show
+more than 80), classic start, every automatic aid off (rescue, start projection, automatic
 damping, merit, trust region, DC fallback). The outer control loop is off
 (`control.enabled: false`): the tap changer of sp_case14 and the two
 phase-shifting transformers and the SVC of sp_case60 stay at the positions
@@ -120,8 +122,8 @@ both are the same buses, Birkkamp_110 and Westtal_110.
 The classic strategies accept a Q overshoot below the hysteresis of 0.01 pu
 (1 Mvar at 100 MVA). Westtal_110 under classic_simultaneous (0.636 Mvar
 above its limit) and bus 6 of case14_zeng under classic_one_at_a_time
-(0.678 Mvar above its limit of 24 Mvar) stay PV for this reason, and the final Q check of the solver reports
-`within_hysteresis`. The classic loop and the final check read the
+(0.678 Mvar above its limit of 24 Mvar) stay PV for this reason, and the
+final Q check of the solver reports `within_hysteresis`. The classic loop and the final check read the
 hysteresis from the net (`net.q_hyst_pu`, `net.final_q_accept_pu`, import
 defaults 0.01 and 0.02 pu). Setting `power_flow.qlimits.hysteresis_pu: 0`
 in the config passed to `run_sparlectra` alone changes nothing: these runs
@@ -240,7 +242,7 @@ Violating buses (dU/dQ in pu per pu at 100 MVA):
 ## Q(U) droop
 
 A generator that holds its voltage is a PV bus until Q reaches a limit,
-then a PQ bus. Kataoka [4] replaces this switch by a smooth Q-V curve
+then a PQ bus. Kataoka [3] replaces this switch by a smooth Q-V curve
 (hyperbolic or sigmoid), so the power flow has no bus type switching. Zhao
 et al. [1] (section 5) object that such a curve masks the true face of the
 problem: with the switching logic the solution point of every generator
@@ -262,7 +264,7 @@ follows |U| and enters the Jacobian with the slope. With P(U)
 | N-fail | sp_case60 with two other bands of 159 and 160: -1.0 to 0.5 Mvar (`m1p0_0p5`), and 1.5 Mvar wide with the upper limit 1 Mvar below the base Q (`qbase_m1`, `softpv_bands.txt`) | 159 and 160 | 4 dU, active set; each band also switched with the three strategies |
 | N-pu | as N-fail | Q(U) and P(U) at 159 and 160 | dU 1 and 2 %, active set |
 | Z-pu | case14_zeng | Q(U) and P(U) at the four PV generators | dU 1 and 2 %, active set |
-| 118-all | sp_case118 | all 53 PV generators | dU 1 %, 3 strategies |
+| 118-all | sp_case118 | all 53 PV generators | dU 0.5 and 1 %, 3 strategies |
 
 Settings as for the switched runs, every aid off. Every Q(U) and P(U) file
 is written by `exportSCF`, so the PQ buses start on 1.0 pu and 0 degrees,
@@ -380,11 +382,11 @@ Westtal_110 and -0.19 at Birkkamp_110, the smallest eigenvalue -0.0035, the
 unstable branch. P(U) is not active at either solution (U below
 U_set + dU) and only changes the Newton path.
 
-118-all, dU 1 %: no strategy converges undamped; damped, all three give one
-solution in 49 iterations, max abs dU 0.0054 pu to the switched solution.
-With the droop off the smallest eigenvalue is -0.0089 and dU/dQ is negative
-at all 53 buses; with the droop on it is 8.9 and dU/dQ is positive at all
-53. The check with the droop off treats a bus on the slope like a PV
+118-all, dU 0.5 and 1 %: no strategy converges undamped; damped, all three
+give one solution in 49 iterations, max abs dU 0.0030 and 0.0054 pu to the
+switched solution. With the droop off the smallest eigenvalue is -0.0097
+and -0.0089 and dU/dQ is negative at all 53 buses; with the droop on it is
+7.7 and 8.9 and dU/dQ is positive at all 53. The check with the droop off treats a bus on the slope like a PV
 machine frozen at a Q inside its band, a case check (c) of the switched
 runs never tests. It rejects the switched active set solution of
 sp_case118 as well: with every machine frozen at its solved Q its smallest
@@ -404,7 +406,7 @@ Z-all there is no such pattern.
 
 ## Soft-PV after Kataoka
 
-Kataoka [4] keeps the generator PV inside its band and rounds the corners
+Kataoka [3] keeps the generator PV inside its band and rounds the corners
 at the limits. Here this is a `QUController` with four points, linear,
 clamped outside:
 
@@ -459,28 +461,32 @@ K-nband: with dU_c 1 % both machines are at 5.5 Mvar, the active set
 solution. With 2 % Birkkamp_110, with 5 % both machines are in the upper
 corner, 0.0008 and 0.0046 pu off. No run reaches the classic solution with
 Westtal_110 at 1.02 pu and 6.14 Mvar, which is outside the characteristic
-(`results/fig8_kataoka.png`). Smallest eigenvalue 0.0067 to 0.0079, as at
-the switched active set solution (0.007); dU/dQ at least 0.64.
+(`results/fig8_kataoka.png`). Smallest eigenvalue 0.0067 to 0.0070 without
+and 0.0070 to 0.0079 with the characteristic, as at the switched active set
+solution (0.0070); dU/dQ at least 0.64.
 
 K-118: no strategy converges undamped (80 iterations). Damped, all three
 reach one solution in 6 iterations, 0.0019 pu from the switched active set
-solution; the droop 1 % reaches 0.0054 pu in 49 damped iterations. 46 of
-the 53 machines are in the middle segment with |U - U_set| at most
-0.00096 pu (dU_in 0.001 pu), 5 in the upper and 2 in the lower corner.
+solution; the droop 0.5 % reaches 0.0030 pu, the droop 1 % 0.0054 pu, both
+in 49 damped iterations. 46 of the 53 machines are in the middle segment,
+5 in the upper and 2 in the lower corner. 43 of the 46 hold U_set in the
+switched active set solution as well; the other 3 are at a Q limit there,
+and Soft-PV keeps them within 0.1 % of U_set. Every machine that holds
+U_set in the switched solution is in the middle segment.
 With the characteristic off dU/dQ is negative at all 53 buses (smallest
 eigenvalue -0.011), with it on positive at all 53 (8.50), the same reading
 as for the droop.
 
 Iterations: Soft-PV against droop 0.5 % with the active set, K-zall 5 to 6
-against 5 (13 on the low-voltage solution), K-nband 6 to 7 against 6. The
-steep middle segment costs no iterations in these two networks. sp_case118
-has no droop 0.5 % run; there both shapes fail undamped.
+against 5 (13 on the low-voltage solution), K-nband 6 to 7 against 6,
+K-118 6 against 49 (both damped; undamped both fail). The steep middle
+segment costs no iterations.
 
-H5 (the Soft-PV solution is nearer to the active set than every droop, and
-|U - U_set| < dU_in in the middle segment) holds in K-118 only. In K-zall
-the droop 0.5 % is nearer, in K-nband the droop 0.5 and 1 % and Soft-PV
-with dU_c 1 % all give the active set solution. The middle segment
-condition holds at all 46 buses where it applies.
+H5 (the Soft-PV solution is nearer to the active set than every droop)
+holds in K-118 only. In K-zall the droop 0.5 % is nearer, in K-nband the
+droop 0.5 and 1 % and Soft-PV with dU_c 1 % all give the active set
+solution. |U - U_set| < dU_in at a bus in the middle segment holds by the
+definition of that segment and is not a result.
 
 ## Limits
 
@@ -492,11 +498,11 @@ condition holds at all 46 buses where it applies.
   case files; the interaction of the Q-limit strategies with an outer
   control loop is not part of this study.
 - Q(U) droop: linear, two points. Soft-PV: linear, four points, not the
-hyperbolic or sigmoid curve of [4]. K-118 only with dU_in 0.1 % and
-dU_c 2 %.
-  The sp_case60 variants run on the file with the coupler contracted.
-  `dudq_qu` and `qv_min_eig_qu` leave out P(U). sp_case118 only at dU 1 %.
-  Start values other than `uset` and `flat` were not run.
+  hyperbolic or sigmoid curve of [3]. K-118 only with dU_in 0.1 % and
+  dU_c 2 %; 118-all only at dU 0.5 and 1 %.
+- The sp_case60 variants run on the file with the coupler contracted.
+- `dudq_qu` and `qv_min_eig_qu` leave out P(U).
+- Start values other than `uset` and `flat` were not run.
 - The physical check covers eq. 3, 5, 6 and 7 of [1] and the sign of dU/dQ
   at the regulated buses at a limit. At a bus held at its set point dU/dQ
   is zero by definition and not tested; load buses enter only through
@@ -515,8 +521,7 @@ dU_c 2 %.
    margin calculation caused by incorrect logical PV/PQ switching:
    Analytics and improved methods", International Journal of Electrical
    Power and Energy Systems 147 (2023) 108905.
-3. Sundaresh, Rao: Sadhana 2015.
-4. Y. Kataoka: "A smooth power flow model of electric power system with
+3. Y. Kataoka: "A smooth power flow model of electric power system with
    generator reactive power limits taken into consideration", IEEE
    International Symposium on Circuits and Systems (ISCAS), 2005,
    pp. 5286-5289. Cited from [1], not read for this study.

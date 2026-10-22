@@ -135,7 +135,9 @@ function fig8()
   stab = [x for x in read_csv(joinpath(RESULTS, "stability_softpv.csv")) if x["strategy"] == "active_set" && x["damped"] == "false" && x["start"] == "uset"]
   cons = [x for x in read_csv(joinpath(RESULTS, "consistency.csv")) if x["case"] == "sp_case60_narrow" && x["guard"] == "true" && x["lock"] == "-"]
   panels = []
-  ulo, uhi = 0.97, 1.04
+  # uhi above U_set + dU_in + dU_c of Westtal_110 (1.0404 pu), so the Q_min
+  # end of its Soft-PV characteristic is visible
+  ulo, uhi = 0.97, 1.045
   for (title, sel) in (("Q(U) droop, dU 1 %", x -> x["variant"] == "N-band" && x["du_pct"] == "1"),
     ("Soft-PV (Kataoka), dU_in 0.1 %, dU_c 2 %", x -> x["variant"] == "K-nband" && x["du_in_pct"] == "0.1" && x["du_c_pct"] == "2"))
     p = plot(xlabel = "U (pu)", ylabel = "Q (Mvar)", title = title, legend = :bottomleft, framestyle = :box, xlims = (ulo, uhi), ylims = (3.8, 6.4))

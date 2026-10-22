@@ -20,7 +20,7 @@ const SOL = joinpath(RESULTS, "solutions")
 const STRATEGIES = ["active_set", "classic_simultaneous", "classic_one_at_a_time"]
 # Kataoka variant => droop variant on the same network and the droop half
 # width (%) its iterations are compared with
-const K_DROOP = Dict("K-zall" => ("Z-all", "0.5"), "K-nband" => ("N-band", "0.5"), "K-118" => ("118-all", "1"))
+const K_DROOP = Dict("K-zall" => ("Z-all", "0.5"), "K-nband" => ("N-band", "0.5"), "K-118" => ("118-all", "0.5"))
 
 function read_csv(file)
   L = readlines(file)
@@ -143,8 +143,10 @@ function compare_softpv_main()
     println(io)
     println(io, "Kataoka: Soft-PV (four points: PV inside the band, corners with 10 % of the band over dU_c).")
     println(io, "Run: active_set, start uset, damped only where the undamped run did not converge.")
-    println(io, "H5: the Soft-PV solution is nearer to active_set than every Q(U) droop of the same network,")
-    println(io, "and |U - U_set| < dU_in at every bus in the middle segment. \"equal\": both distances below 1e-6 pu, the solver tolerance.")
+    println(io, "H5: the Soft-PV solution is nearer to active_set than every Q(U) droop of the same network.")
+    println(io, "\"equal\": both distances below 1e-6 pu, the solver tolerance.")
+    println(io, "held: machines at U_set (within 1e-6 pu) in the switched active_set solution; mid: of these, in the middle")
+    println(io, "segment of Soft-PV; mid, not held: in the middle segment although switched active_set has them at a Q limit.")
     for kv in ("K-zall", "K-nband", "K-118")
       dv, d0 = K_DROOP[kv]
       kr = [r for r in soft_runs if r["variant"] == kv]
@@ -157,7 +159,9 @@ function compare_softpv_main()
       println(io)
       println(io, kv, " (", kr[1]["case"], "), nearest droop to active_set: dU ", best[1], " % with ", @sprintf("%.6f", best[2].max_dU_pu), " pu",
         best[2].damped == "true" ? " damped" : "", "; droop dU ", d0, " %: ", itlabel(d0run), " iterations")
-      println(io, rpad("in % c %", 12), join([rpad("$(s) ($(n))", 28) for (s, n) in refs]), rpad("nearest", 22), rpad("H5", 6), rpad("iterations " * join(["as", "cs", "co"], "/"), 34), "PV/PQ events")
+      println(io, rpad("in % c %", 12), join([rpad("$(s) ($(n))", 28) for (s, n) in refs]), rpad("nearest", 22), rpad("H5", 6), rpad("iterations " * join(["as", "cs", "co"], "/"), 34), rpad("PV/PQ events", 14), "held/mid/mid, not held")
+      # voltages of the switched active set solution, by bus index
+      vsw = Dict(x["bus"] => f(x, "vm_pu") for x in read_csv(joinpath(SOL, "$(kr[1]["case"])_active_set_guard_on.csv")))
       for (din, dc) in chars
         sel = x -> x["variant"] == kv && x["du_in_pct"] == din && x["du_c_pct"] == dc
         r = pick(soft_runs, sel, "active_set")
@@ -169,11 +173,13 @@ function compare_softpv_main()
         end
         row = [pairof(r, s) for (s, _) in refs]
         near = row[argmin([p.max_dU_pu for p in row])]
-        mid = [x for x in stab if x["variant"] == kv && x["du_in_pct"] == din && x["du_c_pct"] == dc && x["strategy"] == "active_set" && x["damped"] == r["damped"] && x["position"] == "mid"]
-        mid_ok = all(f(x, "abs_du_pu") < f(x, "uset_pu") * f(x, "du_in_pct") / 100 for x in mid)
+        kb = [x for x in stab if x["variant"] == kv && x["du_in_pct"] == din && x["du_c_pct"] == dc && x["strategy"] == "active_set" && x["damped"] == r["damped"]]
+        held = [abs(vsw[x["bus"]] - f(x, "uset_pu")) < 1e-6 for x in kb]
+        mid = [x["position"] == "mid" for x in kb]
         dk = pairof(r, "active_set").max_dU_pu
-        h5 = !mid_ok || near.ref_strategy != "active_set" ? "no" : max(dk, best[2].max_dU_pu) < 1e-6 ? "equal" : dk < best[2].max_dU_pu ? "yes" : "no"
-        println(io, rpad("$(din) $(dc)", 12), join([rpad(@sprintf("%.6f", p.max_dU_pu) * (p.damped == "true" ? " damped" : ""), 28) for p in row]), rpad(near.ref_strategy, 22), rpad(h5, 6), rpad(its, 34), ev)
+        h5 = near.ref_strategy != "active_set" ? "no" : max(dk, best[2].max_dU_pu) < 1e-6 ? "equal" : dk < best[2].max_dU_pu ? "yes" : "no"
+        println(io, rpad("$(din) $(dc)", 12), join([rpad(@sprintf("%.6f", p.max_dU_pu) * (p.damped == "true" ? " damped" : ""), 28) for p in row]), rpad(near.ref_strategy, 22), rpad(h5, 6), rpad(its, 34), rpad(ev, 14),
+          "$(sum(held))/$(sum(held .& mid))/$(sum(mid .& .!held))")
       end
       println(io, "per bus (active_set): bus name position |U - U_set| pu, dU_in pu, Q Mvar, dU/dQ off/on")
       for (din, dc) in chars

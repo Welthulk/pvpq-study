@@ -8,7 +8,7 @@
 # the band. dU in percent of U_set. P(U): P_base up to U_set + dU, then linear
 # to 0.8 P_base at U_set + 2 dU, clamped above.
 #
-# Soft-PV after Kataoka [4] (shape "kataoka"): PV inside the band, soft
+# Soft-PV after Kataoka, ISCAS 2005 (shape "kataoka"): PV inside the band, soft
 # corners at the limits. Four points, linear, clamped outside:
 #   (U_set - dU_in - dU_c, Q_max), (U_set - dU_in, Q_max - delta),
 #   (U_set + dU_in, Q_min + delta), (U_set + dU_in + dU_c, Q_min)
@@ -397,7 +397,11 @@ function softpv_main()
     runall(variant("Z-pu", "case14_zeng", zeng, zeng_pv, du, true, "-", Dict())..., ["active_set"])
   end
   c118 = joinpath(CASES, "sp_case118.scf.json")
-  runall(variant("118-all", "sp_case118", c118, pv_generator_buses(load_net(c118)), 1.0, false, "-", Dict())..., STRATEGIES)
+  # droop 0.5 % as the stiffness reference of the Soft-PV run K-118, 1 % as
+  # the droop of the earlier runs
+  for du in (0.5, 1.0)
+    runall(variant("118-all", "sp_case118", c118, pv_generator_buses(load_net(c118)), du, false, "-", Dict())..., STRATEGIES)
+  end
 
   # Soft-PV after Kataoka: six characteristics on case14_zeng (three
   # strategies) and on sp_case60_narrow (active set), one on sp_case118
