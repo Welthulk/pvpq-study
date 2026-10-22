@@ -128,7 +128,7 @@ deletes `results/` and writes it new: `runs.csv`, `pairs.csv`,
 `sp_case60_narrow.txt`, the final solutions in `results/solutions/`, the
 configuration of every run in `results/configs/`, and the two figures. It
 also rewrites the networks in `cases/`. Two runs one after the other took
-1 min 18 s and 1 min 10 s wall time (`time julia reproduce.jl`, same
+1 min 8 s and 1 min 12 s wall time (`time julia reproduce.jl`, same
 machine and Julia version as above).
 
 Check: after a run, look at
@@ -233,23 +233,25 @@ is checked at each bus with a voltage-regulating or reference unit
 the number of violating buses per check in `runs.csv` and
 `narrow_lock.csv` (`viol_a`, `viol_b`, `viol_c`).
 
-The criterion follows Zhao, Chiang, Li and Ju [1]. A generator either
-holds its voltage set point with its reactive power inside the limits, or
-it runs at one of its limits. At the upper limit its voltage must be at or
-below the set point, at the lower limit at or above it (eq. 6 and 7 of the
-paper). A machine at its upper limit with the voltage above the set point
-could lower its excitation and get back to the set point; the solution
-does not describe what its regulator would do. The paper calls such a
-solution abnormal, and one such bus is enough. It also links these
-conditions to the voltage stability criterion that dU/dQ at a bus must be
-positive.
+The criterion follows Zhao, Chiang, Li and Ju [1]. A generator either holds
+its voltage set point with its reactive power inside the limits, or it runs
+at one of its limits. A voltage below the set point requires Q at the upper
+limit (eq. 6 of the paper), a voltage above the set point Q at the lower
+limit (eq. 7). At the upper limit the voltage must therefore be at or below
+the set point, at the lower limit at or above it. A machine at its upper
+limit with the voltage above the set point could lower its excitation and
+get back to the set point; the solution does not describe what its regulator
+would do. The paper calls such a solution abnormal, and one such bus is
+enough. It also links these conditions to the voltage stability criterion
+that dU/dQ at a bus must be positive.
 
 How it is tested:
 
 - State of each bus from the solved values: `vset` when
   |U - U_set| <= 1e-5 pu (the slack always), else `qmax` or `qmin` when Q
   is within 1e-4 pu (0.01 Mvar) of that limit, else `none`.
-- (a) At `qmax` U <= U_set + 1e-5 pu, at `qmin` U >= U_set - 1e-5 pu. A bus
+- (a) At `qmax` U <= U_set + 1e-5 pu (eq. 7), at `qmin`
+  U >= U_set - 1e-5 pu (eq. 6). A bus
   in state `none` (neither at its set point nor at a limit) fails as well.
 - (b) At `vset`: Q_min - 1e-4 pu <= Q <= Q_max + 1e-4 pu.
 - (c) At `qmax` and `qmin`: the reactive injection of the bus is raised by
@@ -260,14 +262,18 @@ How it is tested:
   (`dudq_jacobian`); `runs.csv` also gets the smallest real eigenvalue of
   that matrix (`qv_min_eig`).
 
-Q limits and set points come from Sparlectra: `getQLimits_pu` (the sum of
-the units of a bus) and the set points the solver holds, read before the
-solve. Q comes from the solved voltages with the Sparlectra Ybus of the
-working net the solver uses (closed bus couplers contracted), plus the load
-of the bus. The script stops if this Ybus does not reproduce P at every bus
-and Q at every bus without a regulating unit within 1e-3 MW or Mvar. The Q
-of the Sparlectra report is kept in `q_report_MVar`. The tolerances are
-chosen here; the paper gives none.
+Q limits and set points come from Sparlectra: `getQLimits_pu` and the set
+points the solver holds, read before the solve. On a bus with a regulating
+or reference unit `getQLimits_pu` is the sum of the limits of those units
+plus the fixed Q of the other generator units of the bus, which do not widen
+the band; it bounds the total generator Q of the bus. In the four networks
+every regulated bus has one generator unit. Q is the total generator Q of
+the bus, from the solved voltages with the Sparlectra Ybus of the working
+net the solver uses (closed bus couplers contracted), plus the load of the
+bus. The script stops if this Ybus does not reproduce P at every bus except
+the slack and Q at every bus without a regulating unit within 1e-3 MW or
+Mvar. The Q of the Sparlectra report is kept in `q_report_MVar`. The
+tolerances are chosen here; the paper gives none.
 
 Counts (buses at a limit, then violating buses per check):
 
@@ -282,7 +288,7 @@ Counts (buses at a limit, then violating buses per check):
 | sp_case60_narrow, lock list 11 | active_set | off | 4 | 2 | 1 | 0 | 0 | - |
 
 The lock list runs with bus 25 and with 11 and 25 did not converge and are
-not checked.
+not checked; their rows in `consistency.csv` carry no type, Q or U.
 
 Violating buses:
 
@@ -298,27 +304,30 @@ dU/dQ in pu per pu at 100 MVA.
 
 - case14_zeng: of the three converged solutions only the active set one is
   admissible. `classic_simultaneous` ends with three machines at their
-  upper limit and the voltage above the set point (eq. 6).
+  upper limit and the voltage above the set point (eq. 7).
   `classic_one_at_a_time` leaves bus 6 as PV with 24.678 Mvar, above its
   limit of 24 Mvar (eq. 5).
 - Check (c) passes at every bus at a limit, also at the three buses that
-  fail (a). The paper argues that eq. 6 and 7 and the sign of dU/dQ are
-  equivalent; on these solved states they are not, and only the
-  voltage-side test finds the abnormal buses.
+  fail (a). The sign of the local V-Q sensitivity at the final state with
+  all bus types held (the criterion the paper cites from Kundur) does not
+  find these buses; only the voltage-side test does. The perturbation
+  argument of the paper is about the step from PV to PQ during the
+  switching, which (c) does not model, so this does not contradict the
+  paper.
 - sp_case14 and sp_case118: all three solutions pass; the 10 buses of
   sp_case118 at a limit sit on the correct side of their set point.
-- sp_case60_narrow: all six runs pass. Birkkamp_110 runs at its upper
-  limit of 5.5 Mvar with 1.0026 pu in every run, below its set point of
-  1.01 pu. With the lock list on bus 11 the run
-  converges, but Birkkamp_110 is held at its lower limit of 4.0 Mvar with
-  0.9966 pu, below its set point (eq. 7): its regulator would raise Q. This
-  converged point is not an admissible operating point.
-- In sp_case60_narrow, which has closed bus couplers, Sparlectra keeps the
-  bus type of Birkkamp_110 at PV in the solved net, although the bus runs
-  at a limit with the voltage off its set point. The classic strategies
-  report its Q as 7.389 Mvar, outside the band; from the solved voltages
-  it is 5.500 Mvar. The check uses the value from the voltages. "Buses PV
-  to PQ" reads the Sparlectra bus types and is therefore 0 for this case.
+- sp_case60_narrow: all six runs pass. Birkkamp_110 runs at its upper limit
+  of 5.5 Mvar with 1.0026 pu in every run, below its set point of 1.01 pu.
+  With the lock list on bus 11 the run converges, but Birkkamp_110 is held
+  at its lower limit of 4.0 Mvar with 0.9966 pu, below its set point (eq.
+  6): its regulator would raise Q. This converged point is not an admissible
+  operating point.
+- In sp_case60_narrow Sparlectra keeps the bus type of Birkkamp_110 at PV in
+  the solved net, although the bus runs at a limit with the voltage off its
+  set point. The classic strategies report its Q as 7.389 Mvar, outside the
+  band; from the solved voltages it is 5.500 Mvar. The check uses the value
+  from the voltages. "Buses PV to PQ" reads the Sparlectra bus types and is
+  therefore 0 for this case.
 
 ## Limits
 

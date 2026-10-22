@@ -213,11 +213,11 @@ sp_case60_narrow,active_set,false,11,1,Altau_220,Slack,Slack,vset,-,19.8852801,1
 sp_case60_narrow,active_set,false,11,4,Ostfeld_220,PV,PV,vset,-,-9.61525019,-9.61525019,-100,100,1.02,1.02,n/a,pass,n/a,NaN,NaN
 sp_case60_narrow,active_set,false,11,11,Birkkamp_110,PV,PV,qmin,min,4,4,4,5.5,0.996598285,1.01,fail,n/a,pass,0.635644222,0.637153327
 sp_case60_narrow,active_set,false,11,25,Westtal_110,PV,PV,qmax,max,5.50000006,5.5,4,5.5,1.01669846,1.02,pass,n/a,pass,4.53626433,4.61780128
-sp_case60_narrow,active_set,false,25,1,Altau_220,Slack,Slack,-,-,19.9859348,0,-Inf,Inf,1.03,1.03,not_solved,not_solved,not_solved,NaN,NaN
-sp_case60_narrow,active_set,false,25,4,Ostfeld_220,PV,PV,-,-,-7.53244824,0,-100,100,1.02,1.02,not_solved,not_solved,not_solved,NaN,NaN
-sp_case60_narrow,active_set,false,25,11,Birkkamp_110,PV,PV,-,-,7.25771312,0,4,5.5,1.01,1.01,not_solved,not_solved,not_solved,NaN,NaN
-sp_case60_narrow,active_set,false,25,25,Westtal_110,PV,PV,-,-,5.71109122,0,4,5.5,1.02,1.02,not_solved,not_solved,not_solved,NaN,NaN
-sp_case60_narrow,active_set,false,11 25,1,Altau_220,Slack,Slack,-,-,19.9859348,0,-Inf,Inf,1.03,1.03,not_solved,not_solved,not_solved,NaN,NaN
-sp_case60_narrow,active_set,false,11 25,4,Ostfeld_220,PV,PV,-,-,-7.53244824,0,-100,100,1.02,1.02,not_solved,not_solved,not_solved,NaN,NaN
-sp_case60_narrow,active_set,false,11 25,11,Birkkamp_110,PV,PV,-,-,7.25771312,0,4,5.5,1.01,1.01,not_solved,not_solved,not_solved,NaN,NaN
-sp_case60_narrow,active_set,false,11 25,25,Westtal_110,PV,PV,-,-,5.71109122,0,4,5.5,1.02,1.02,not_solved,not_solved,not_solved,NaN,NaN
+sp_case60_narrow,active_set,false,25,1,Altau_220,Slack,-,-,-,NaN,NaN,-Inf,Inf,NaN,1.03,not_solved,not_solved,not_solved,NaN,NaN
+sp_case60_narrow,active_set,false,25,4,Ostfeld_220,PV,-,-,-,NaN,NaN,-100,100,NaN,1.02,not_solved,not_solved,not_solved,NaN,NaN
+sp_case60_narrow,active_set,false,25,11,Birkkamp_110,PV,-,-,-,NaN,NaN,4,5.5,NaN,1.01,not_solved,not_solved,not_solved,NaN,NaN
+sp_case60_narrow,active_set,false,25,25,Westtal_110,PV,-,-,-,NaN,NaN,4,5.5,NaN,1.02,not_solved,not_solved,not_solved,NaN,NaN
+sp_case60_narrow,active_set,false,11 25,1,Altau_220,Slack,-,-,-,NaN,NaN,-Inf,Inf,NaN,1.03,not_solved,not_solved,not_solved,NaN,NaN
+sp_case60_narrow,active_set,false,11 25,4,Ostfeld_220,PV,-,-,-,NaN,NaN,-100,100,NaN,1.02,not_solved,not_solved,not_solved,NaN,NaN
+sp_case60_narrow,active_set,false,11 25,11,Birkkamp_110,PV,-,-,-,NaN,NaN,4,5.5,NaN,1.01,not_solved,not_solved,not_solved,NaN,NaN
+sp_case60_narrow,active_set,false,11 25,25,Westtal_110,PV,-,-,-,NaN,NaN,4,5.5,NaN,1.02,not_solved,not_solved,not_solved,NaN,NaN

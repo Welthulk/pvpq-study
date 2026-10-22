@@ -4,15 +4,19 @@
 # Criteria of Zhao, Chiang, Li, Ju, "On PV-PQ bus type switching logic in
 # power flow computation": a generator is either at its voltage set point or
 # at one of its Q limits (eq. 3); a bus held at its voltage keeps Q inside
-# the limits (eq. 5); a bus at Q_max has U <= U_set, a bus at Q_min has
-# U >= U_set (eq. 6 and 7); dU/dQ > 0 at the bus (V-Q sensitivity, p5).
+# the limits (eq. 5); a bus with U < U_set is at Q_max (eq. 6), a bus with
+# U > U_set is at Q_min (eq. 7), so a bus at Q_max has U <= U_set and a bus
+# at Q_min has U >= U_set; dU/dQ > 0 at the bus (V-Q sensitivity after
+# Kundur, ref. 12 of the paper).
 #
 # Q limits and voltage set points come from Sparlectra: the aggregated
-# per-bus limits (getQLimits_pu, the sum of the units of a bus) and the set
-# points the solver holds (_bus_voltage_setpoints_from_prosumers, taken
-# before the solve). Q of a bus comes from the solved voltages and the
-# Sparlectra Ybus; the Q of the report (q_gen_MVar, the sum of the units of
-# a bus) is written next to it.
+# per-bus limits (getQLimits_pu; on a bus with a regulating or reference
+# unit the sum of the limits of those units plus the fixed Q of the other
+# generator units of the bus) and the set points the solver holds
+# (_bus_voltage_setpoints_from_prosumers, taken before the solve). Q of a
+# bus is its total generator Q, from the solved voltages and the Sparlectra
+# Ybus; the Q of the report (q_gen_MVar, the sum of the units of a bus) is
+# written next to it.
 
 using LinearAlgebra
 
@@ -175,17 +179,20 @@ function admissibility(net, case, strategy, guard, lock, types0, vset, converged
     u, us = r.vm_pu, vset[b]
     q = qgen[b] / base
     ev = get(net.qLimitEvents, b, nothing)
-    # (a) complementarity at a limit: at Q_max U <= U_set, at Q_min U >= U_set;
-    # a bus neither at U_set nor at a limit fails eq. 3
+    # (a) complementarity at a limit: at Q_max U <= U_set (eq. 7), at Q_min
+    # U >= U_set (eq. 6); a bus neither at U_set nor at a limit fails eq. 3
     a = s == "qmax" ? pf(u <= us + TOL_U) : s == "qmin" ? pf(u >= us - TOL_U) : s == "none" ? "fail" : "n/a"
     # (b) a bus held at its set point keeps Q inside its limits
     b_ = s == "vset" ? pf(qmin[b] - TOL_Q <= q <= qmax[b] + TOL_Q) : "n/a"
     # (c) dU/dQ > 0 at a bus that is not held at its set point
     c = haskey(sens, b) ? pf(sens[b] > 0) : "n/a"
+    # a run that did not converge leaves an iterate, not a result: its bus
+    # type, Q and U are not written
     push!(rows, (case = case, strategy = strategy, guard = guard, lock = lock, bus = b, name = r.bus_name,
-      start_type = string(types0[b]), end_type = string(getNodeType(net.nodeVec[b])), state = converged ? s : "-",
+      start_type = string(types0[b]), end_type = converged ? string(getNodeType(net.nodeVec[b])) : "-", state = converged ? s : "-",
       qlimit_event = ev === nothing ? "-" : string(ev),
-      q_MVar = qgen[b], q_report_MVar = r.q_gen_MVar, qmin_MVar = qmin[b] * base, qmax_MVar = qmax[b] * base, u_pu = u, uset_pu = us,
+      q_MVar = converged ? qgen[b] : NaN, q_report_MVar = converged ? r.q_gen_MVar : NaN, qmin_MVar = qmin[b] * base, qmax_MVar = qmax[b] * base,
+      u_pu = converged ? u : NaN, uset_pu = us,
       check_a = converged ? a : "not_solved", check_b = converged ? b_ : "not_solved", check_c = converged ? c : "not_solved",
       dudq = get(sens, b, NaN), dudq_jacobian = get(sens_jac, b, NaN)))
   end
