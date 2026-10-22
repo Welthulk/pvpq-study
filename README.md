@@ -32,13 +32,143 @@ automatic damping, merit, trust region, DC fallback). The guard for narrow
 reactive bands (`power_flow.qlimits.guard`, default on, `min_q_range_pu` 0.02,
 `narrow_range_mode` lock_pq) is on in the runs A and on and off in the runs B.
 
+## Installation
+
+Sparlectra 0.60.0 is not in the General registry yet. The study takes it
+directly from the public GitHub repository at a fixed commit, set in
+`Project.toml`:
+
+```toml
+[sources]
+Sparlectra = {url = "https://github.com/Welthulk/Sparlectra.jl", rev = "a3cd5bc9011b57e5479109f3297f39390a9880e5"}
+```
+
+`Manifest.toml` pins every other package. Nothing has to be registered.
+
+### 1. Julia
+
+Install Julia with juliaup.
+
+Linux and macOS:
+
+```
+curl -fsSL https://install.julialang.org | sh
+```
+
+Windows (PowerShell or cmd):
+
+```
+winget install --name Julia --id 9NJNWW8PVKMN -e -s msstore
+```
+
+Open a new terminal afterwards. The manifest was resolved with Julia 1.13.2
+(`julia_version` in `Manifest.toml`), use that version:
+
+```
+juliaup add 1.13.2
+juliaup default 1.13.2
+julia --version
+```
+
+Sparlectra itself needs Julia 1.12 or later. With a version other than
+1.13.2 Pkg warns about the manifest and may resolve other package versions;
+the results are then not guaranteed to be identical.
+
+### 2. Git
+
+Needed to clone this repository.
+
+- Linux: `sudo apt install git` (Debian, Ubuntu) or the package manager of
+  the distribution.
+- macOS: `xcode-select --install`.
+- Windows: `winget install --id Git.Git -e`.
+
+### 3. Get the study
+
+The repository is private; your GitHub account needs read access. Over
+HTTPS git asks for the user name and a personal access token, over SSH it
+uses your SSH key:
+
+```
+git clone https://github.com/Welthulk/pvpq-study.git
+cd pvpq-study
+```
+
+or
+
+```
+git clone git@github.com:Welthulk/pvpq-study.git
+cd pvpq-study
+```
+
+### 4. Install the environment
+
+In the `pvpq-study` directory:
+
+```
+julia --project=. -e "using Pkg; Pkg.instantiate()"
+```
+
+This downloads the General registry, the pinned packages and Sparlectra at
+commit a3cd5bc9 from GitHub (public, no credentials), then precompiles.
+On an empty Julia depot this took 2 min 49 s here (AMD Ryzen AI 7 350,
+16 threads, Linux, Julia 1.13.2), of which 65 s precompilation.
+
 ## Reproduce
 
 ```
 julia reproduce.jl
 ```
 
-Two runs give identical CSV files and figures.
+`reproduce.jl` runs `Pkg.instantiate()` again (fast once installed),
+deletes `results/` and writes it new: `runs.csv`, `pairs.csv`,
+`decision.txt`, `narrow_lock.csv`, `sp_case60_narrow.txt`, the final
+solutions in `results/solutions/`, the configuration of every run in
+`results/configs/`, and the two figures. It also rewrites the networks in
+`cases/`. It took 62 s on the first run after installation and 55 s on a
+later run (same machine and Julia version as above).
+
+Check: run it twice and look at
+
+```
+git status --short results/ cases/
+```
+
+It shows nothing: the CSV files are identical to the committed ones. On the
+machine above the PNG files were byte-identical too; on another machine
+(fonts, graphics library) they may differ in bytes without any change in
+the numbers.
+
+### Updating later
+
+- Another Sparlectra commit: change `rev` in `[sources]`, then
+  `julia --project=. -e "using Pkg; Pkg.resolve()"` and run
+  `reproduce.jl` again.
+- Registered Sparlectra 0.60.0, once it exists: delete the `[sources]`
+  section from `Project.toml`, start `julia --project=.`, press `]` and
+  enter `add Sparlectra@0.60.0`. Then run `reproduce.jl`.
+- `Pkg.update()` moves every other package (Plots and its dependencies) to
+  the newest compatible version and rewrites `Manifest.toml`. Sparlectra
+  stays at the commit in `[sources]`. The figures and, in principle, the
+  numbers can change; compare `results/` with `git diff` before committing
+  a new manifest.
+
+### Troubleshooting
+
+- `git: command not found` (Windows: "git is not recognized"): install git
+  (step 2) and open a new terminal.
+- Proxy: set `HTTPS_PROXY` and `HTTP_PROXY` for the package downloads, and
+  `git config --global http.proxy http://proxy.example:8080` for
+  `git clone`. Pkg fetches Sparlectra through its own git library; if that
+  fails behind the proxy, set `JULIA_PKG_USE_CLI_GIT=true` so Pkg uses the
+  installed git with its proxy setting. If the Julia package server
+  (`pkg.julialang.org`) is blocked, set `JULIA_PKG_SERVER` to a reachable
+  mirror, or to an empty string to fetch from GitHub directly.
+- The first `Pkg.instantiate()` and the first run are slow because packages
+  are precompiled (about a minute here, longer on slower machines). Later
+  runs use the compile cache.
+- Under a `C` locale the plotting library prints a Qt message about
+  switching to `C.UTF-8`. It does not affect the results.
 
 ## Results
 
@@ -88,8 +218,9 @@ selected by the rule in `compare.jl`), `results/fig5b_narrow_guard.png`.
 
 ## Limits
 
-- One version of Sparlectra (0.60.0, run from the development checkout until
-  it is in the General registry), one start (classic), one tolerance.
+- One version of Sparlectra: 0.60.0 from the public GitHub repository at
+  commit a3cd5bc9, the development state of the upcoming 0.60 (not in the
+  General registry yet). One start (classic), one tolerance.
 - "Buses PV to PQ" counts buses that start as PV and end as PQ; switching
   rounds and events are the counters of the solver status
   (`qlimit_active_set_changes`, `pv_pq_switching_events`); no run reported

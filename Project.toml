@@ -5,4 +5,4 @@ Sparlectra = "31ce9bba-fd9d-44a1-b005-f5f509afda38"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [sources]
-Sparlectra = {path = "/home/scud/.julia/dev/Sparlectra"}
+Sparlectra = {url = "https://github.com/Welthulk/Sparlectra.jl", rev = "a3cd5bc9011b57e5479109f3297f39390a9880e5"}

@@ -2,7 +2,7 @@
 
 julia_version = "1.13.2"
 manifest_format = "2.1"
-project_hash = "5904223d59073442206d8e66059448f08c6842c7"
+project_hash = "0707e7358bd6913c3b6a4945efe5b9c94af2bb6d"
 
 [[deps.AliasTables]]
 deps = ["PtrArrays", "Random"]
@@ -835,7 +835,9 @@ version = "1.2.3"
 
 [[deps.Sparlectra]]
 deps = ["AnalyticLoadFlow", "Dates", "DelimitedFiles", "Downloads", "EzXML", "LinearAlgebra", "Logging", "Markdown", "PrecompileTools", "Printf", "Random", "SHA", "Serialization", "Sockets", "SparseArrays", "TOML", "UUIDs", "ZipArchives"]
-path = "/home/scud/.julia/dev/Sparlectra"
+git-tree-sha1 = "d99b2b4626044c2ad0ede613ea19ce55b2646564"
+repo-rev = "a3cd5bc9011b57e5479109f3297f39390a9880e5"
+repo-url = "https://github.com/Welthulk/Sparlectra.jl"
 uuid = "31ce9bba-fd9d-44a1-b005-f5f509afda38"
 version = "0.60.0"
 
