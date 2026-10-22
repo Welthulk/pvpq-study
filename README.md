@@ -46,6 +46,15 @@ out of the PQ to PV release, so the first limit it reaches holds it there.
 `guarded` counts only buses the guard turns into PQ before the solve and
 stays 0 for them.
 
+The classic start (`start_mode` classic, no projection) begins from the
+voltages stored in the case file. `case14_zeng`, `sp_case118` and every file
+that `exportSCF` writes carry 1.0 pu and 0 degrees at the PQ buses.
+`sp_case14`, `sp_case60`, `sp_case60_narrow` and the two contracted copies
+in `cases/softpv/` carry a solved state (in sp_case60 PQ buses 0.92 to
+1.03 pu, angles -25 to 9 degrees). sp_case14 therefore converges in 1
+iteration, and sp_case60_narrow in 4 instead of 7 from 1.0 pu and 0
+degrees.
+
 ## Installation
 
 Sparlectra 0.60.0 is not in the General registry yet. The study takes it
@@ -404,11 +413,13 @@ follows |U| and enters the Jacobian with the slope. With P(U)
 | Z-pu | case14_zeng | Q(U) and P(U) at the four PV generators | dU 1 and 2 %, active set |
 | 118-all | sp_case118 | all 53 PV generators | dU 1 %, 3 strategies |
 
-Settings as for the switched runs, every aid off. Start values: the classic
-start puts PV and slack buses on their set point and PQ buses on 1.0 pu, and
+Settings as for the switched runs, every aid off. Every Q(U) and P(U) file
+is written by `exportSCF`, so the PQ buses start on 1.0 pu and 0 degrees, and
 a Soft-PV bus is PQ. In the main runs (start `uset`) the Soft-PV buses start
-on their former set point, which is the start vector of the switched runs.
-Z-all and Z-one also run with start `flat` (Soft-PV buses on 1.0 pu). A run
+on their former set point; Z-all and Z-one also run with start `flat`
+(Soft-PV buses on 1.0 pu). The switched comparison runs start classic from
+their file: N-band from the solved state of `sp_case60_narrow_contracted`,
+N-fail from the exported `nfail_*_switched` files on 1.0 pu. A run
 that does not converge is repeated with `autodamp: true` and marked
 `damped`.
 
@@ -419,7 +430,8 @@ on a net with a closed bus coupler, and sp_case60 has one (Neubach_110 to
 Neubach_110b). The sp_case60 variants therefore carry the contraction the
 solver does for the switched runs: line 89 starts at Neubach_110, the
 coupler is open, Neubach_110b is an isolated bus. With switching this file
-gives the solutions of `sp_case60_narrow` (max |dU| 0, `pairs_softpv.csv`).
+gives the solutions of `sp_case60_narrow` (max |dU| 0 without the isolated
+bus, `pairs_softpv.csv`).
 
 Q of a Q(U) machine is its characteristic at the solved U. The script stops
 if this differs by more than 1e-3 Mvar from the Q of the solved voltages and
@@ -490,13 +502,14 @@ start the strategy at the remaining PV buses decides whether the run
 converges and on which branch it ends.
 
 sp_case60_narrow (N-band): every dU and strategy converges in 6 iterations,
-the strategies agree; the remaining PV buses have no PV/PQ event in any run,
-so there is nothing for them to differ on. At dU 0.5 and 1 % both machines
+the strategies agree; the one remaining PV bus, Ostfeld_220 (band -100 to
+100 Mvar), has no PV/PQ event in any run, so the strategies have nothing
+to differ on. At dU 0.5 and 1 % both machines
 run at 5.5 Mvar with 0.9966 and 0.9883 pu, the active set solution (max abs
 dU below 1e-6 pu). At 2 % Birkkamp_110 is on the slope (5.30 Mvar), at 5 %
 both (5.02 and 5.41 Mvar, max abs dU 0.0137 pu). No run comes near the
-classic solution, in which Westtal_110 holds 1.02 pu with 6.136 Mvar above
-its limit: a characteristic clamped at Q_max has no such point
+classic solution, in which Westtal_110 holds 1.02 pu with 6.136 Mvar, above
+its Q_max of 5.5 Mvar: a characteristic clamped at Q_max has no such point
 (`results/fig7_narrow_softpv.png`). dU/dQ is at least 0.68.
 
 sp_case60, band -1.0 to 0.5 Mvar: no run converges: switched with any
@@ -535,11 +548,13 @@ start `uset` passes both checks.
 Summary:
 
 - One solution independent of the strategy, when Q(U) replaces every PV
-  generator: yes (case14_zeng, sp_case60_narrow, sp_case118 only damped),
-  but this follows from the setup: no strategy has a PV/PQ event to act on
-  (0 events in every run). Which solution depends on the start. From the
-  switched start values the high-voltage one, from 1.0 pu at the Soft-PV
-  buses an unstable low-voltage one in case14_zeng.
+  generator: yes (case14_zeng, sp_case118 only damped), but this follows
+  from the setup: no strategy has a PV/PQ event to act on (0 events in
+  every run). Which solution depends on the start. From the switched start
+  values the high-voltage one, from 1.0 pu at the Soft-PV buses an
+  unstable low-voltage one in case14_zeng. In sp_case60_narrow the
+  strategies agree as well, because the remaining PV bus Ostfeld_220 has
+  no event.
 - A steeper characteristic gives a solution closer to the switched one that
   fulfils eq. 5 to 7; in case14_zeng, sp_case60_narrow and sp_case60 with
   band `qbase_m1` this is the active set solution.
@@ -562,7 +577,7 @@ Summary:
 
 - One version of Sparlectra: 0.60.0 from the public GitHub repository at
   commit a3cd5bc9, the development state of the upcoming 0.60 (not in the
-  General registry yet). One start (classic), one tolerance.
+  General registry yet). Switched runs: one start (classic), one tolerance.
 - "Buses PV to PQ" counts buses that start as PV and end as PQ; switching
   rounds and events are the counters of the solver status
   (`qlimit_active_set_changes`, `pv_pq_switching_events`).

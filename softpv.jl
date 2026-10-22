@@ -212,11 +212,10 @@ end
 
 # --- one run ------------------------------------------------------------------
 
-# Start values. The classic start of the study puts PV and slack buses on
-# their set point and every PQ bus on 1.0 pu; a Soft-PV bus is PQ. With
-# start "uset" the Soft-PV buses start on their former set point, so the
-# start vector is that of the switched runs; with start "flat" they start on
-# 1.0 pu.
+# Start values. The classic start begins from the voltages stored in the
+# file; exportSCF writes 1.0 pu and 0 degrees at the PQ buses, and a Soft-PV
+# bus is PQ. With start "uset" the Soft-PV buses start on their former set
+# point, with start "flat" on 1.0 pu.
 function soft_run(v, file, strategy; damped = false, start = "uset")
   cfgfile = damped ? damped_config(strategy) : run_config(strategy, true)
   prepare(net) = start == "uset" ? foreach(b -> (net.nodeVec[b]._vm_pu = v.data[b].uset), keys(v.data)) : nothing
