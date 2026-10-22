@@ -209,9 +209,9 @@ Runs B, sp_case60_narrow:
 | classic_simultaneous | on / off | yes | 7 / 7 |
 | classic_one_at_a_time | on / off | yes | 7 / 7 |
 
-The guard (`narrow_range_mode: lock_pq`) keeps a narrow-band machine PV while
-its Q lies inside the band and locks it at the limit it reaches; with and
-without the guard the active set ends on the same solution. Generator 160
+With and without the guard each strategy ends on the same solution: every
+column of `runs.csv` and every difference in `pairs.csv` is equal, and
+`guarded` is 0 in all six runs. Generator 160
 stays PV inside its band. Run as PQ through
 `power_flow.qlimits.lock_pv_to_pq_buses`, generator 159 alone converges (5
 iterations), generator 160 alone and both together do not (80 iterations).
@@ -297,9 +297,11 @@ violating buses per check, buses that fail any check):
 | sp_case60_narrow | active_set | off | 11 | 4 | 2 | 1 | 0 | 0 | 1 | - |
 
 Q is computed from the solved voltages on the contracted network (closed
-bus couplers merged, as the solver does); at the coupler bus Birkkamp_110 of
-sp_case60_narrow the Sparlectra report of the classic strategies differs
-from it (report 7.389 Mvar, voltages 5.500 Mvar).
+bus couplers merged, as the solver does; the only closed coupler in
+sp_case60_narrow joins Neubach_110 and Neubach_110b). At Birkkamp_110, a PV
+bus at its upper limit and not at a coupler, the Sparlectra report of the two
+classic strategies gives 7.389 Mvar generator Q, above the limit of 5.5 Mvar;
+the voltages give 5.500 Mvar. The active set report agrees with the voltages.
 
 The lock list runs with bus 25 and with 11 and 25 did not converge and are
 not checked; their rows in `consistency.csv` carry no type, Q or U.
