@@ -1,11 +1,15 @@
-# figures.jl: the two figures of the study, PNG 1200 x 627 px.
+# figures.jl: the figures of the study, PNG 1200 x 627 px.
 #   5a voltage profile of the three final solutions of the case with the
 #      largest deviation (results/fig5a_voltage_profile.png), when the
 #      decision rule selects it
 #   5b iterations and switching rounds with and without the guard for
 #      sp_case60_narrow (results/fig5b_narrow_guard.png)
+#   6  case14_zeng with Q(U): distance to the switched solutions
+#      (results/fig6_zeng_softpv.png)
+#   7  sp_case60_narrow with Q(U): characteristics and solved points
+#      (results/fig7_narrow_softpv.png)
 #
-# usage: julia --project=. figures.jl   (after compare.jl)
+# usage: julia --project=. figures.jl   (after compare.jl and compare_softpv.jl)
 
 # GR draws offscreen. Without this, on a desktop session (Wayland, X11) GR
 # tries to open a Qt window first; when that fails ("GKS: Open failed") the
@@ -64,11 +68,58 @@ function fig5b()
   save_1200x627(p, joinpath(RESULTS, "fig5b_narrow_guard.png"))
 end
 
+# 6: case14_zeng with Q(U), distance of the Soft-PV solution (active set,
+# start uset) to each switched solution over the half width dU of the
+# characteristic (results/pairs_softpv.csv)
+function fig6()
+  pairs = read_csv(joinpath(RESULTS, "pairs_softpv.csv"))
+  p = plot(size = (1200, 628), dpi = 100, xscale = :log10, xticks = ([0.5, 1, 2, 5], ["0.5", "1", "2", "5"]), xlabel = "half width dU of the Q(U) characteristic (% of U_set)", ylabel = "max |dU| to the switched solution (pu)",
+    title = "case14_zeng: Q(U) instead of PV/PQ switching", legend = :topleft, framestyle = :box, left_margin = 12Plots.mm, bottom_margin = 10Plots.mm, ylims = (0, :auto))
+  for (variant, ls, lab) in (("Z-all", :solid, "Q(U) at all four PV machines"), ("Z-one", :dash, "Q(U) at buses 2 and 6"))
+    for (s, m) in zip(STRATEGIES, (:circle, :rect, :utriangle))
+      sel = [x for x in pairs if x["variant"] == variant && x["control"] == "qu" && x["start"] == "uset" && x["strategy"] == "active_set" && x["damped"] == "false" && x["ref_strategy"] == s]
+      isempty(sel) && continue
+      ok = sel[1]["ref_inconsistent_buses"] == "0" ? "admissible" : "not admissible"
+      plot!(p, parse.(Float64, getindex.(sel, "du_pct")), parse.(Float64, getindex.(sel, "max_dU_pu")), label = "$(lab), against $(s) ($(ok))", linestyle = ls, marker = m, markersize = 5)
+    end
+  end
+  save_1200x627(p, joinpath(RESULTS, "fig6_zeng_softpv.png"))
+end
+
+# 7: sp_case60_narrow, the Q(U) characteristic of both narrow-band machines
+# per dU with the solved point, and the switched solutions
+# (results/stability_softpv.csv, results/consistency.csv)
+function fig7()
+  stab = [x for x in read_csv(joinpath(RESULTS, "stability_softpv.csv")) if x["variant"] == "N-band" && x["strategy"] == "active_set" && x["damped"] == "false"]
+  cons = [x for x in read_csv(joinpath(RESULTS, "consistency.csv")) if x["case"] == "sp_case60_narrow" && x["guard"] == "true" && x["lock"] == "-"]
+  panels = []
+  for name in ("Birkkamp_110", "Westtal_110")
+    rs = [x for x in stab if x["name"] == name]
+    p = plot(xlabel = "U (pu)", ylabel = "Q (Mvar)", title = name, legend = :bottomleft, framestyle = :box)
+    for r in rs
+      us, du, qmin, qmax = parse(Float64, r["uset_pu"]), parse(Float64, r["du_pct"]), parse(Float64, r["qmin_MVar"]), parse(Float64, r["qmax_MVar"])
+      d = us * du / 100
+      plot!(p, [0.95, us - d, us + d, 1.06], [qmax, qmax, qmin, qmin], label = "Q(U), dU $(r["du_pct"]) %")
+      scatter!(p, [parse(Float64, r["u_pu"])], [parse(Float64, r["q_MVar"])], label = "", color = :black, markersize = 4)
+    end
+    for (s, m) in zip(STRATEGIES, (:star5, :diamond, :xcross))
+      c = only(x for x in cons if x["name"] == name && x["strategy"] == s)
+      scatter!(p, [parse(Float64, c["u_pu"])], [parse(Float64, c["q_MVar"])], label = "switched, $(s)", marker = m, markersize = 8)
+    end
+    vline!(p, [parse(Float64, rs[1]["uset_pu"])], label = "U_set", color = :gray, linestyle = :dot)
+    push!(panels, p)
+  end
+  p = plot(panels..., layout = (1, 2), size = (1200, 628), dpi = 100, plot_title = "sp_case60_narrow: band 4.0 to 5.5 Mvar as Q(U) characteristic, dots: solved points", left_margin = 10Plots.mm, bottom_margin = 10Plots.mm)
+  save_1200x627(p, joinpath(RESULTS, "fig7_narrow_softpv.png"))
+end
+
 function main()
   d = read(joinpath(RESULTS, "decision.txt"), String)
   case = match(r"figure 5a case: (\S+)", d).captures[1]
   occursin("main figure: 5a", d) && case != "-" && fig5a(case)
   fig5b()
+  isfile(joinpath(RESULTS, "pairs_softpv.csv")) && fig6()
+  isfile(joinpath(RESULTS, "stability_softpv.csv")) && fig7()
   println("figures written to results/")
 end
 

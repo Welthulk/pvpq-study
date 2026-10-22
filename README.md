@@ -16,10 +16,12 @@ solution is an admissible operating point.
 | `run_compare.jl` | one network, three strategies, same start values and tolerance; one CSV line per run (`results/runs.csv`), the final solution of every run (`results/solutions/`), the band of the narrow band case (`results/sp_case60_narrow.txt`), the lock list check (`results/narrow_lock.csv`) and the physical check of every solution (`results/consistency.csv`) |
 | `admissibility.jl` | the physical check, called by `run_compare.jl` for every solved run |
 | `compare.jl` | pairwise comparison of the final solutions (`results/pairs.csv`) and the decision rule for the main figure (`results/decision.txt`) |
+| `softpv.jl` | Soft-PV: Q(U) and P(U) instead of the voltage regulator of chosen generators (`results/runs_softpv.csv`, `results/stability_softpv.csv`, `results/solutions/softpv/`, `results/softpv_bands.txt`) |
+| `compare_softpv.jl` | Soft-PV solutions against the switched ones (`results/pairs_softpv.csv`, `results/h2_softpv.txt`) |
 | `figures.jl` | figures as PNG, 1200 x 627 px, drawn offscreen (`GKSwstype=100`) |
 | `reproduce.jl` | everything above from a fresh checkout |
 | `config/base.yaml` | settings of every run; per run the strategy and the guard are added (`results/configs/`) |
-| `cases/` | the networks as SCF files, written by `run_compare.jl` |
+| `cases/` | the networks as SCF files, written by `run_compare.jl`; the Soft-PV variants in `cases/softpv/`, written by `softpv.jl` |
 
 Networks: `case14_zeng` (the case of Zeng and Chiang as shipped with
 Sparlectra, `data/scf/case14_zeng_p306_activeSet_A.scf.json`), `sp_case14`,
@@ -134,11 +136,13 @@ julia reproduce.jl
 `reproduce.jl` runs `Pkg.instantiate()` again (fast once installed),
 deletes `results/` and writes it new: `runs.csv`, `pairs.csv`,
 `decision.txt`, `narrow_lock.csv`, `consistency.csv`,
-`sp_case60_narrow.txt`, the final solutions in `results/solutions/`, the
-configuration of every run in `results/configs/`, and the two figures. It
+`sp_case60_narrow.txt`, the Soft-PV files (`runs_softpv.csv`,
+`pairs_softpv.csv`, `h2_softpv.txt`, `stability_softpv.csv`,
+`softpv_bands.txt`), the final solutions in `results/solutions/`, the
+configuration of every run in `results/configs/`, and the four figures. It
 also rewrites the networks in `cases/`. Two runs one after the other took
-55.8 s and 61.9 s wall time (`time julia reproduce.jl`, same
-machine and Julia version as above).
+118 s and 141 s wall time (start and end time of each run, same machine and
+Julia version as above).
 
 Check: after a run, look at
 
@@ -371,6 +375,161 @@ dU/dQ in pu per pu at 100 MVA.
   its set point. "Buses PV to PQ" reads the Sparlectra bus types and is
   therefore 0 for this case.
 
+## Soft-PV: Q(U) instead of switching
+
+A generator that holds its voltage is a PV bus until Q reaches a limit,
+then a PQ bus. Kataoka [4] replaces this switch by a smooth Q-V curve of the
+generator (hyperbolic or sigmoid), so the power flow has no bus type
+switching at all. Zhao et al. [1] (section 5) object that such a curve is
+unsuitable for voltage stability assessment because it masks the true face
+of the problem: with the switching logic the solution point of every
+generator lies on a stable branch, with a smooth curve it can lie on an
+unstable one.
+
+Here the voltage regulator of chosen generators is replaced by a Sparlectra
+`QUController`. The characteristic is linear, not Kataoka's sigmoid: Q_max
+at U_set - dU, Q_min at U_set + dU, clamped outside, so Q is in the middle
+of the band at U_set. dU is 0.5, 1, 2 and 5 % of U_set. The bus is PQ; its Q
+follows |U| and enters the Jacobian with the slope. With P(U)
+(`PUController`) P stays at P_base up to U_set + dU and falls linearly to
+0.8 P_base at U_set + 2 dU.
+
+| Variant | Network | Q(U) at | Runs |
+|---|---|---|---|
+| Z-all | case14_zeng | the four PV generators (buses 1, 2, 3, 6) | 4 dU x 3 strategies |
+| Z-one | case14_zeng | buses 2 and 6, buses 1 and 3 stay PV | 4 dU x 3 strategies |
+| N-band | sp_case60_narrow | generators 159 and 160, characteristic over their band 4.0 to 5.5 Mvar | 4 dU x 3 strategies |
+| N-fail | sp_case60 with two other bands of 159 and 160: -1.0 to 0.5 Mvar (`m1p0_0p5`), and 1.5 Mvar wide with the upper limit 1 Mvar below the base Q (`qbase_m1`, `softpv_bands.txt`) | 159 and 160 | 4 dU, active set; each band also switched with the three strategies |
+| N-pu | as N-fail | Q(U) and P(U) at 159 and 160 | dU 1 and 2 %, active set |
+| Z-pu | case14_zeng | Q(U) and P(U) at the four PV generators | dU 1 and 2 %, active set |
+| 118-all | sp_case118 | all 53 PV generators | dU 1 %, 3 strategies |
+
+Settings as for the switched runs, every aid off. Start values: the classic
+start puts PV and slack buses on their set point and PQ buses on 1.0 pu, and
+a Soft-PV bus is PQ. In the main runs (start `uset`) the Soft-PV buses start
+on their former set point, which is the start vector of the switched runs.
+Z-all and Z-one also run with start `flat` (Soft-PV buses on 1.0 pu). A run
+that does not converge is repeated with `autodamp: true` and marked
+`damped`.
+
+SCF carries the characteristics (`extra.<machine>.qu_control`,
+`pu_control`); `softpv.jl` writes every variant to `cases/softpv/` and
+solves it from that file. The pinned Sparlectra does not solve P(U) or Q(U)
+on a net with a closed bus coupler, and sp_case60 has one (Neubach_110 to
+Neubach_110b). The sp_case60 variants therefore carry the contraction the
+solver does for the switched runs: line 89 starts at Neubach_110, the
+coupler is open, Neubach_110b is an isolated bus. With switching this file
+gives the solutions of `sp_case60_narrow` (max |dU| 0, `pairs_softpv.csv`).
+
+Q of a Q(U) machine is its characteristic at the solved U. The script stops
+if this differs by more than 1e-3 Mvar from the Q of the solved voltages and
+the Ybus. The generator Q stored at the node is not used; at the pinned
+commit it keeps the nameplate value for Q(U) units.
+
+Files: `runs_softpv.csv` (columns of `runs.csv`, plus variant, file, band,
+control, start, dU, P(U) on, damped, and per Soft-PV bus U, Q, P, U - U_set
+and the region of the characteristic, `slope`, `qmax` or `qmin`, separated
+by `;`), `pairs_softpv.csv` (every converged Soft-PV solution against every
+converged switched solution of the same network), `h2_softpv.txt`,
+`stability_softpv.csv`, the solutions in `results/solutions/softpv/`.
+
+Perturbation check (`stability_softpv.csv`), as check (c): bus types held,
+Soft-PV buses PQ at their solved Q (characteristic off), Q raised by 0.1
+Mvar, power flow solved again; dU/dQ > 0 passes. `qv_min_eig` is the
+smallest eigenvalue of the reduced Jacobian. `dudq_qu` and `qv_min_eig_qu`
+are the same with the slope of each characteristic on the diagonal
+(characteristic on, P(U) not included).
+
+### Results
+
+case14_zeng, Q(U) at all four PV generators, start `uset`. The three
+strategies give byte-identical solutions, no PV/PQ switching event.
+Set points 1.06, 1.045, 1.01, 1.07 pu.
+
+| dU % | Iterations | U at bus 1, 2, 3, 6 (pu) | Q (Mvar) | max abs dU to active set (pu) |
+|---|---|---|---|---|
+| 0.5 | 5 | 1.0670, 1.0400, 1.0013, 1.0642 | 0, 48.39, 40, 24 | 0.0050 |
+| 1 | 5 | 1.0673, 1.0366, 0.9981, 1.0600 | 7.75, 41.12, 40, 22.95 | 0.0086 |
+| 2 | 6 | 1.0666, 1.0315, 0.9914, 1.0526 | 17.25, 34.05, 38.45, 21.17 | 0.0160 |
+| 5 | 5 | 1.0566, 1.0171, 0.9727, 1.0351 | 26.61, 29.07, 34.76, 18.78 | 0.0336 |
+| switched, active set | 7 | 1.0720, 1.0450, 1.0062, 1.0687 | 0, 48.84, 40, 24 | |
+
+The closer the characteristic, the closer the solution to the active set
+solution, the only switched one that fulfils eq. 5 to 7 (`h2_softpv.txt`,
+`results/fig6_zeng_softpv.png`). At dU 0.5 % it has the same states (bus 1
+at Q_min, bus 2 in the band, buses 3 and 6 at Q_max), with U about dU away
+from the switched values. dU/dQ is positive at every Soft-PV bus.
+
+With start `flat` the same network ends on another solution: U 0.722,
+0.664, 0.594 and 0.704 pu, all four machines at Q_max, losses 51.8 MW
+instead of 22.1 MW with start `uset`. dU/dQ is negative at buses 1, 2 and 3 (-0.14 to -0.19),
+the smallest eigenvalue -0.62 with and without the characteristic: an
+unstable low-voltage solution. dU 0.5 and 5 % reach it in 7 and 8
+iterations, dU 1 and 2 % do not converge and reach it damped in 8. Every
+strategy gives the same.
+
+Q(U) at buses 2 and 6 only (Z-one, start `uset`): at dU 2 and 5 % all three
+strategies converge to one solution (6, 9, 9 iterations), both machines on
+the slope. At dU 0.5 % classic_simultaneous does not converge, at dU 1 %
+classic_one_at_a_time; both reach damped a solution with U 0.850 and 0.891
+pu at buses 2 and 6, dU/dQ -0.82 and -0.43, smallest eigenvalue -0.13. The
+other two strategies agree within 1e-8 pu.
+
+sp_case60_narrow (N-band): every dU and strategy converges in 6
+iterations, the strategies agree. At dU 0.5 and 1 % both machines run at
+5.5 Mvar with 0.9966 and 0.9883 pu, the active set solution (max abs dU
+below 1e-6 pu). At 2 % Birkkamp_110 is on the slope (5.30 Mvar), at 5 % both
+(5.02 and 5.41 Mvar, max abs dU 0.0137 pu). No run comes near the classic
+solution, in which Westtal_110 holds 1.02 pu with 6.136 Mvar above its
+limit: a characteristic clamped at Q_max has no such point
+(`results/fig7_narrow_softpv.png`). dU/dQ is at least 0.68.
+
+sp_case60, band -1.0 to 0.5 Mvar: no run converges, switched with any
+strategy, Q(U) at any dU, Q(U) with P(U), each also damped. Band
+`qbase_m1`: switched, the active set converges in 7 iterations (0
+inconsistent buses), the classic strategies in 5 (2 inconsistent buses).
+Q(U) converges at every dU (6, 6, 7, 8 iterations); up to dU 2 % it gives
+the active set solution (max abs dU 2.3e-6 pu), both machines at Q_max with
+0.9897 and 0.9411 pu, dU/dQ at least 0.99.
+
+P(U): Z-pu does not converge undamped at dU 1 and 2 %; damped (26 and 48
+iterations) it ends on the Z-all solution with P at P_base. In N-pu, band
+`qbase_m1`, it converges (7 and 9 iterations) to a solution with Westtal_110
+at 0.864 pu and Birkkamp_110 at 0.972 pu, Q at Q_max and P at 40 MW as in
+N-fail: the same injections at other voltages. dU/dQ is -9.7 and the
+smallest eigenvalue -0.0035, the unstable branch. P(U) is not active at the
+solution (U below U_set + dU) and only changed the Newton path.
+
+sp_case118, Q(U) at all 53 PV generators, dU 1 %: no strategy converges
+undamped; damped, all three give one solution in 49 iterations, max abs dU
+0.0054 pu to the switched solution. With the characteristic off the smallest
+eigenvalue is -0.0089 and dU/dQ is negative at all 53 buses; with the
+characteristic on it is 8.9 and dU/dQ is positive at all 53. With the Q of
+every machine frozen at its solved value the point is not stable; only the
+slope of the characteristics holds it. The check with the characteristic
+off, which this study uses, rejects it.
+
+Summary:
+
+- One solution independent of the strategy, when Q(U) replaces every PV
+  generator: yes (case14_zeng, sp_case60_narrow, sp_case118 only damped),
+  but which solution depends on the start. From the switched start values the
+  high-voltage one, from 1.0 pu at the Soft-PV buses an unstable
+  low-voltage one in case14_zeng.
+- A steeper characteristic gives a solution closer to the switched one that
+  fulfils eq. 5 to 7; in case14_zeng, sp_case60_narrow and sp_case60 with
+  band `qbase_m1` this is the active set solution.
+- The band that fails with switching fails with Q(U) as well. The other
+  band converges with both.
+- With the active set, steepness costs no iterations here (5 to 8 at every
+  dU in Z-all, Z-one, N-band and N-fail). Failures to converge do not grow
+  with steepness; they depend on the start, on P(U) and on the strategy at
+  the remaining PV buses.
+- Converged Q(U) runs can end on an unstable branch: case14_zeng from
+  1.0 pu, the damped Z-one runs, sp_case60 with P(U). Convergence of a Q(U)
+  power flow says nothing about stability; dU/dQ has to be checked, which is
+  the point of Zhao et al.
+
 ## Limits
 
 - One version of Sparlectra: 0.60.0 from the public GitHub repository at
@@ -383,6 +542,10 @@ dU/dQ in pu per pu at 100 MVA.
 - Tap changers, phase shifters and the SVC stay at the positions of the case
   files; the interaction of the Q-limit strategies with an outer control
   loop is not part of this study.
+- Soft-PV: one characteristic shape (linear, two points), not the smooth
+  curve of [4]. The sp_case60 variants run on the file with the coupler
+  contracted. `dudq_qu` and `qv_min_eig_qu` leave out P(U). sp_case118 only
+  at dU 1 %. Start values other than `uset` and `flat` were not run.
 - The physical check covers eq. 3, 5, 6 and 7 of [1] and the sign of
   dU/dQ at the regulated buses at a limit. At a bus held at its set point
   dU/dQ is zero by definition and not tested; load buses enter only
@@ -402,3 +565,7 @@ dU/dQ in pu per pu at 100 MVA.
    Analytics and improved methods", International Journal of Electrical
    Power and Energy Systems 147 (2023) 108905.
 3. Sundaresh, Rao: Sadhana 2015.
+4. Y. Kataoka: "A smooth power flow model of electric power system with
+   generator reactive power limits taken into consideration", IEEE
+   International Symposium on Circuits and Systems (ISCAS), 2005,
+   pp. 5286-5289. Cited from [1], not read for this study.

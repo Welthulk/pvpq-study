@@ -56,9 +56,13 @@ function run_config(strategy::AbstractString, guard::Bool)
   return file
 end
 
-function run_case(case::AbstractString, strategy::AbstractString; guard::Bool = true)
-  cfg = load_sparlectra_config(run_config(strategy, guard))
+# `cfgfile` replaces the configuration of the run (softpv.jl: damped runs),
+# `prepare` changes the imported net before the solve (softpv.jl: start
+# values); the solved net is returned as well
+function run_case(case::AbstractString, strategy::AbstractString; guard::Bool = true, cfgfile::AbstractString = run_config(strategy, guard), prepare = identity)
+  cfg = load_sparlectra_config(cfgfile)
   net = redirect_stdout(() -> importSCF(joinpath(CASES, case * ".scf.json")), devnull)
+  prepare(net)
   types0 = [getNodeType(n) for n in net.nodeVec]
   vset = Sparlectra._bus_voltage_setpoints_from_prosumers(net)
   # PV buses whose Q band is below the guard threshold min_q_range_pu: with
@@ -87,7 +91,7 @@ function run_case(case::AbstractString, strategy::AbstractString; guard::Bool = 
   v = res.final_converged ? violations(adm) : NO_VIOLATIONS
   row = merge(row, v, (qv_min_eig = qv_min_eig,))
   sol = [(bus = i, name = n.comp.cName, vn_kV = n.comp.cVN, type = string(types1[i]), vm_pu = something(n._vm_pu, NaN), va_deg = something(n._va_deg, NaN)) for (i, n) in enumerate(net.nodeVec)]
-  return row, sol, adm
+  return row, sol, adm, net
 end
 
 # --- sp_case60_narrow ----------------------------------------------------------

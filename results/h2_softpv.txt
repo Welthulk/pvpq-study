@@ -1,0 +1,52 @@
+H1: Soft-PV solutions of the three strategies (same file, start and damping)
+Z-all    -         dU 0.5  start uset : max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
+Z-all    -         dU 0.5  start flat : max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
+Z-all    -         dU 1    start uset : max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
+Z-all    -         dU 1    start flat  damped: max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
+Z-all    -         dU 2    start uset : max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
+Z-all    -         dU 2    start flat  damped: max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
+Z-all    -         dU 5    start uset : max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
+Z-all    -         dU 5    start flat : max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
+Z-one    -         dU 0.5  start uset : max |dU| active_set to classic_one_at_a_time = 1e-08 pu
+Z-one    -         dU 1    start uset : max |dU| active_set to classic_simultaneous = 2e-09 pu
+Z-one    -         dU 1    start flat : max |dU| active_set to classic_simultaneous = 4.5e-08 pu
+Z-one    -         dU 2    start uset : max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
+Z-one    -         dU 2    start flat : max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 1e-08 pu
+Z-one    -         dU 5    start uset : max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
+Z-one    -         dU 5    start flat : max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
+N-band   -         dU 0.5  start uset : max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
+N-band   -         dU 1    start uset : max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
+N-band   -         dU 2    start uset : max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
+N-band   -         dU 5    start uset : max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
+118-all  -         dU 1    start uset  damped: max |dU| active_set to classic_simultaneous, classic_one_at_a_time = 0 pu
+
+H2: max |dU| in pu of the Soft-PV solution (active_set, start uset) to each switched solution;
+in brackets the inconsistent buses of the switched solution (0 = fulfils eq. 5 to 7)
+
+Z-all:
+dU %    active_set (0)                classic_simultaneous (3)      classic_one_at_a_time (1)     nearest
+0.5     0.005038                      0.016884                      0.005756                      active_set
+1       0.008608                      0.020233                      0.009951                      active_set
+2       0.016016                      0.026567                      0.017359                      active_set
+5       0.033554                      0.045193                      0.034896                      active_set
+
+Z-one:
+dU %    active_set (0)                classic_simultaneous (3)      classic_one_at_a_time (1)     nearest
+0.5     0.005038                      0.016884                      0.005756                      active_set
+1       0.010017                      0.021863                      0.010549                      active_set
+2       0.017281                      0.028166                      0.018623                      active_set
+5       0.030703                      0.041056                      0.032046                      active_set
+
+N-band:
+dU %    active_set (0)                classic_simultaneous (1)      classic_one_at_a_time (1)     nearest
+0.5     0.000000                      0.033317                      0.033317                      active_set
+1       0.000000                      0.033317                      0.033317                      active_set
+2       0.003022                      0.036339                      0.036339                      active_set
+5       0.013718                      0.047036                      0.047036                      active_set
+
+N-fail band qbase_m1:
+dU %    active_set (0)                classic_simultaneous (2)      classic_one_at_a_time (2)     nearest
+0.5     0.000001                      0.083177                      0.083177                      active_set
+1       0.000002                      0.083174                      0.083174                      active_set
+2       0.000001                      0.083178                      0.083178                      active_set
+5       0.013810                      0.096986                      0.096986                      active_set
