@@ -1,0 +1,2 @@
+case14_zeng switched active_set: qv_min_eig with PV held 0.8565, with every machine frozen at its solved Q 0.0932
+sp_case118 switched active_set: qv_min_eig with PV held 7.8584, with every machine frozen at its solved Q -0.0116

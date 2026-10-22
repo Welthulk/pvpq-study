@@ -16,7 +16,7 @@ solution is an admissible operating point.
 | `run_compare.jl` | one network, three strategies, same start values and tolerance; one CSV line per run (`results/runs.csv`), the final solution of every run (`results/solutions/`), the band of the narrow band case (`results/sp_case60_narrow.txt`), the lock list check (`results/narrow_lock.csv`) and the physical check of every solution (`results/consistency.csv`) |
 | `admissibility.jl` | the physical check, called by `run_compare.jl` for every solved run |
 | `compare.jl` | pairwise comparison of the final solutions (`results/pairs.csv`) and the decision rule for the main figure (`results/decision.txt`) |
-| `softpv.jl` | Soft-PV: Q(U) and P(U) instead of the voltage regulator of chosen generators (`results/runs_softpv.csv`, `results/stability_softpv.csv`, `results/solutions/softpv/`, `results/softpv_bands.txt`) |
+| `softpv.jl` | Soft-PV: Q(U) and P(U) instead of the voltage regulator of chosen generators (`results/runs_softpv.csv`, `results/stability_softpv.csv`, `results/frozen_softpv.txt`, `results/solutions/softpv/`, `results/softpv_bands.txt`) |
 | `compare_softpv.jl` | Soft-PV solutions against the switched ones (`results/pairs_softpv.csv`, `results/h2_softpv.txt`) |
 | `figures.jl` | figures as PNG, 1200 x 627 px, drawn offscreen (`GKSwstype=100`) |
 | `reproduce.jl` | everything above from a fresh checkout |
@@ -431,7 +431,8 @@ control, start, dU, P(U) on, damped, and per Soft-PV bus U, Q, P, U - U_set
 and the region of the characteristic, `slope`, `qmax` or `qmin`, separated
 by `;`), `pairs_softpv.csv` (every converged Soft-PV solution against every
 converged switched solution of the same network), `h2_softpv.txt`,
-`stability_softpv.csv`, the solutions in `results/solutions/softpv/`.
+`stability_softpv.csv`, `frozen_softpv.txt`, the solutions in
+`results/solutions/softpv/`.
 
 Perturbation check (`stability_softpv.csv`), as check (c): bus types held,
 Soft-PV buses PQ at their solved Q (characteristic off), Q raised by 0.1
@@ -442,8 +443,10 @@ are the same with the slope of each characteristic on the diagonal
 
 ### Results
 
-case14_zeng, Q(U) at all four PV generators, start `uset`. The three
-strategies give byte-identical solutions, no PV/PQ switching event.
+case14_zeng, Q(U) at all four PV generators, start `uset`. Only the slack
+still regulates its voltage, so no Q-limit strategy has a PV bus to act on
+(0 PV/PQ events in every run); the byte-identical solutions of the three
+strategies follow from that, not from the strategies.
 Set points 1.06, 1.045, 1.01, 1.07 pu.
 
 | dU % | Iterations | U at bus 1, 2, 3, 6 (pu) | Q (Mvar) | max abs dU to active set (pu) |
@@ -462,7 +465,8 @@ from the switched values. dU/dQ is positive at every Soft-PV bus.
 
 With start `flat` the same network ends on another solution: U 0.722,
 0.664, 0.594 and 0.704 pu, all four machines at Q_max, losses 51.8 MW
-instead of 22.1 MW with start `uset`. dU/dQ is negative at buses 1, 2 and 3 (-0.14 to -0.19),
+instead of 22.1 to 22.9 MW with start `uset`. dU/dQ is negative at buses 1,
+2 and 3 (-0.10 to -0.19),
 the smallest eigenvalue -0.62 with and without the characteristic: an
 unstable low-voltage solution. dU 0.5 and 5 % reach it in 7 and 8
 iterations, dU 1 and 2 % do not converge and reach it damped in 8. Every
@@ -472,22 +476,33 @@ Q(U) at buses 2 and 6 only (Z-one, start `uset`): at dU 2 and 5 % all three
 strategies converge to one solution (6, 9, 9 iterations), both machines on
 the slope. At dU 0.5 % classic_simultaneous does not converge, at dU 1 %
 classic_one_at_a_time; both reach damped a solution with U 0.850 and 0.891
-pu at buses 2 and 6, dU/dQ -0.82 and -0.43, smallest eigenvalue -0.13. The
-other two strategies agree within 1e-8 pu.
+pu at buses 2 and 6, dU/dQ -0.82 and -0.43, smallest eigenvalue -0.13, and
+2 inconsistent buses. The other two strategies agree within 1e-8 pu.
 
-sp_case60_narrow (N-band): every dU and strategy converges in 6
-iterations, the strategies agree. At dU 0.5 and 1 % both machines run at
-5.5 Mvar with 0.9966 and 0.9883 pu, the active set solution (max abs dU
-below 1e-6 pu). At 2 % Birkkamp_110 is on the slope (5.30 Mvar), at 5 % both
-(5.02 and 5.41 Mvar, max abs dU 0.0137 pu). No run comes near the classic
-solution, in which Westtal_110 holds 1.02 pu with 6.136 Mvar above its
-limit: a characteristic clamped at Q_max has no such point
+Z-one with start `flat`: at dU 0.5 % the active set does not converge, also
+damped (80 iterations); classic_simultaneous reaches the low-voltage
+solution above only damped (14 iterations), classic_one_at_a_time the
+high-voltage one in 14. At dU 1 % the active set (7) and
+classic_simultaneous (9) reach the high-voltage solution,
+classic_one_at_a_time the low-voltage one damped (17). At dU 2 and 5 % every
+strategy gives the solution of start `uset` (6 to 10 iterations). With this
+start the strategy at the remaining PV buses decides whether the run
+converges and on which branch it ends.
+
+sp_case60_narrow (N-band): every dU and strategy converges in 6 iterations,
+the strategies agree; the remaining PV buses have no PV/PQ event in any run,
+so there is nothing for them to differ on. At dU 0.5 and 1 % both machines
+run at 5.5 Mvar with 0.9966 and 0.9883 pu, the active set solution (max abs
+dU below 1e-6 pu). At 2 % Birkkamp_110 is on the slope (5.30 Mvar), at 5 %
+both (5.02 and 5.41 Mvar, max abs dU 0.0137 pu). No run comes near the
+classic solution, in which Westtal_110 holds 1.02 pu with 6.136 Mvar above
+its limit: a characteristic clamped at Q_max has no such point
 (`results/fig7_narrow_softpv.png`). dU/dQ is at least 0.68.
 
-sp_case60, band -1.0 to 0.5 Mvar: no run converges, switched with any
-strategy, Q(U) at any dU, Q(U) with P(U), each also damped. Band
-`qbase_m1`: switched, the active set converges in 7 iterations (0
-inconsistent buses), the classic strategies in 5 (2 inconsistent buses).
+sp_case60, band -1.0 to 0.5 Mvar: no run converges: switched with any
+strategy (undamped only), Q(U) at any dU and Q(U) with P(U), each also
+damped. Band `qbase_m1`: switched, the active set converges in 7 iterations
+(0 inconsistent buses), the classic strategies in 5 (2 inconsistent buses).
 Q(U) converges at every dU (6, 6, 7, 8 iterations); up to dU 2 % it gives
 the active set solution (max abs dU 2.3e-6 pu), both machines at Q_max with
 0.9897 and 0.9411 pu, dU/dQ at least 0.99.
@@ -496,39 +511,52 @@ P(U): Z-pu does not converge undamped at dU 1 and 2 %; damped (26 and 48
 iterations) it ends on the Z-all solution with P at P_base. In N-pu, band
 `qbase_m1`, it converges (7 and 9 iterations) to a solution with Westtal_110
 at 0.864 pu and Birkkamp_110 at 0.972 pu, Q at Q_max and P at 40 MW as in
-N-fail: the same injections at other voltages. dU/dQ is -9.7 and the
-smallest eigenvalue -0.0035, the unstable branch. P(U) is not active at the
-solution (U below U_set + dU) and only changed the Newton path.
+N-fail: the same injections at other voltages. dU/dQ is -9.7 at
+Westtal_110 and -0.19 at Birkkamp_110, the smallest eigenvalue -0.0035, the
+unstable branch. P(U) is not active at the solution (U below U_set + dU)
+and only changed the Newton path.
 
 sp_case118, Q(U) at all 53 PV generators, dU 1 %: no strategy converges
 undamped; damped, all three give one solution in 49 iterations, max abs dU
 0.0054 pu to the switched solution. With the characteristic off the smallest
 eigenvalue is -0.0089 and dU/dQ is negative at all 53 buses; with the
-characteristic on it is 8.9 and dU/dQ is positive at all 53. With the Q of
-every machine frozen at its solved value the point is not stable; only the
-slope of the characteristics holds it. The check with the characteristic
-off, which this study uses, rejects it.
+characteristic on it is 8.9 and dU/dQ is positive at all 53. The check
+with the characteristic off treats a bus on the slope like a PV machine
+frozen at a Q inside its band, a case check (c) of the switched runs never
+tests. It rejects the switched active set solution of sp_case118 as well:
+with every machine frozen at its solved Q its smallest eigenvalue is
+-0.0116, against 7.86 with the PV buses held (`frozen_softpv.txt`). For
+buses on the slope the check with the characteristic on is the one that
+applies, and it passes; the result does not make the Soft-PV solution of
+sp_case118 unstable. In case14_zeng the switched active set solution with
+every machine frozen gives +0.093, and every Soft-PV bus of Z-all with
+start `uset` passes both checks.
 
 Summary:
 
 - One solution independent of the strategy, when Q(U) replaces every PV
   generator: yes (case14_zeng, sp_case60_narrow, sp_case118 only damped),
-  but which solution depends on the start. From the switched start values the
-  high-voltage one, from 1.0 pu at the Soft-PV buses an unstable
-  low-voltage one in case14_zeng.
+  but this follows from the setup: no strategy has a PV/PQ event to act on
+  (0 events in every run). Which solution depends on the start. From the
+  switched start values the high-voltage one, from 1.0 pu at the Soft-PV
+  buses an unstable low-voltage one in case14_zeng.
 - A steeper characteristic gives a solution closer to the switched one that
   fulfils eq. 5 to 7; in case14_zeng, sp_case60_narrow and sp_case60 with
   band `qbase_m1` this is the active set solution.
 - The band that fails with switching fails with Q(U) as well. The other
   band converges with both.
-- With the active set, steepness costs no iterations here (5 to 8 at every
-  dU in Z-all, Z-one, N-band and N-fail). Failures to converge do not grow
-  with steepness; they depend on the start, on P(U) and on the strategy at
-  the remaining PV buses.
+- With the active set and start `uset`, steepness costs no iterations here
+  (5 to 8 at every dU in Z-all, Z-one, N-band and N-fail band `qbase_m1`).
+  With start `flat` the active set fails in Z-all at dU 1 and 2 % (undamped)
+  and in Z-one at dU 0.5 % (also damped). In Z-one, where buses 1 and 3
+  stay PV, every undamped failure is at dU 0.5 or 1 % and every run at 2
+  and 5 % converges: there a steep characteristic costs convergence,
+  depending on start and strategy. In Z-all there is no such pattern.
 - Converged Q(U) runs can end on an unstable branch: case14_zeng from
-  1.0 pu, the damped Z-one runs, sp_case60 with P(U). Convergence of a Q(U)
-  power flow says nothing about stability; dU/dQ has to be checked, which is
-  the point of Zhao et al.
+  1.0 pu, the damped Z-one runs, sp_case60 with P(U). There the machines
+  are at Q_max, where both checks agree. Convergence of a Q(U) power flow
+  says nothing about stability; dU/dQ has to be checked, which is the point
+  of Zhao et al.
 
 ## Limits
 

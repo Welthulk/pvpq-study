@@ -12,7 +12,8 @@
 # characteristics in extra.<machine>.qu_control / pu_control) and solved from
 # that file. Writes results/runs_softpv.csv, the final solutions to
 # results/solutions/softpv/ and the perturbation check dU/dQ at every Soft-PV
-# bus to results/stability_softpv.csv.
+# bus to results/stability_softpv.csv; results/frozen_softpv.txt holds the
+# switched active set solutions with every machine frozen at its solved Q.
 #
 # usage: julia --project=. softpv.jl   (after run_compare.jl)
 
@@ -193,6 +194,22 @@ function softpv_stability(net, soft)
   return rows, (qv_min_eig, qv_min_eig_qu)
 end
 
+# Smallest real eigenvalue of the reduced Jacobian of a solved net with every
+# machine frozen at its solved Q: only the slack is reference, every other bus
+# is PQ. This is what the check with the characteristic off sees at a Soft-PV
+# bus, applied to all regulated buses at once, so a switched solution can be
+# judged the same way.
+function frozen_min_eig(net)
+  wnet, reps, _ = Sparlectra._merged_pf_net(net)
+  active = [i for i in eachindex(wnet.nodeVec) if !(i in wnet.isoNodes)]
+  pos = Dict(b => k for (k, b) in enumerate(active))
+  Y = Matrix(createYBUS(net = wnet))
+  U0 = [wnet.nodeVec[b]._vm_pu * cis(deg2rad(wnet.nodeVec[b]._va_deg)) for b in active]
+  ref = sort(unique([pos[reps[b]] for b in eachindex(net.nodeVec) if getNodeType(net.nodeVec[b]) == Sparlectra.Slack]))
+  JR, _ = reduced_jacobian(Y, U0, ref, Int[])
+  return minimum(real, eigvals(JR))
+end
+
 # --- one run ------------------------------------------------------------------
 
 # Start values. The classic start of the study puts PV and slack buses on
@@ -334,6 +351,15 @@ function softpv_main()
   end
   c118 = joinpath(CASES, "sp_case118.scf.json")
   runall(variant("118-all", "sp_case118", c118, pv_generator_buses(load_net(c118)), 1.0, false, "-", Dict())..., STRATEGIES)
+  # the switched active set solutions with every machine frozen at its solved
+  # Q, the reading of qv_min_eig at the Soft-PV buses (characteristic off)
+  frozen = String[]
+  for case in ("case14_zeng", "sp_case118")
+    r, _, _, fnet = run_case(case, "active_set"; guard = true)
+    r.converged || error("$(case): switched active set run did not converge")
+    push!(frozen, @sprintf("%s switched active_set: qv_min_eig with PV held %.4f, with every machine frozen at its solved Q %.4f", case, r.qv_min_eig, frozen_min_eig(fnet)))
+  end
+  write(joinpath(RESULTS, "frozen_softpv.txt"), join(frozen, "\n") * "\n")
 
   # same column order in every row
   cols = keys(first(rows))
