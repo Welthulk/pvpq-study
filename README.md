@@ -87,6 +87,10 @@ only the voltage test finds them.
 
 ## References
 
+Software: Schmitz, Udo: Sparlectra.jl: A Power-Flow and State-Estimation
+Framework in Julia, 2026. Used here: version 0.60.0, commit a3cd5bc9.
+https://github.com/Welthulk/Sparlectra.jl (see Citing below).
+
 1. Zhao, Chiang, Li, Ju: On PV-PQ bus type switching logic in power flow
    computation. 16th PSCC, Glasgow, 2008.
 2. Zeng, Chiang, Neves, Alberto: On the accuracy of power flow and load
@@ -94,3 +98,16 @@ only the voltage test finds them.
    147 (2023) 108905.
 3. Kataoka: A smooth power flow model of electric power system with
    generator reactive power limits taken into consideration. ISCAS 2005.
+
+## Citing
+
+Please cite Sparlectra.jl, the package all runs use:
+
+```bibtex
+@software{sparlectra_jl,
+  title  = {Sparlectra.jl: A Power-Flow and State-Estimation Framework in Julia},
+  author = {Schmitz, Udo},
+  year   = {2026},
+  url    = {https://github.com/Welthulk/Sparlectra.jl}
+}
+```
