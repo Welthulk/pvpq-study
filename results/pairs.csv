@@ -9,10 +9,10 @@ sp_case118,active_set/guard_true,classic_simultaneous/guard_true,0,9.99999994e-0
 sp_case118,active_set/guard_true,classic_one_at_a_time/guard_true,0,2.00000002e-07,0,0,5.00000004e-06,-4.99999999e-07
 sp_case118,classic_simultaneous/guard_true,classic_one_at_a_time/guard_true,0,2.00000002e-07,0,0,5.00000004e-06,-4.99999999e-07
 sp_case60_narrow,active_set/guard_true,active_set/guard_false,0,0,0,0,0,0
-sp_case60_narrow,active_set/guard_true,classic_simultaneous/guard_true,5.6517e-05,0.0010357,0,-0.0003862,-0.0003862,-0.0086773
-sp_case60_narrow,active_set/guard_true,classic_one_at_a_time/guard_true,5.6517e-05,0.0010357,0,-0.0003862,-0.0003862,-0.0086773
-sp_case60_narrow,active_set/guard_false,classic_simultaneous/guard_false,5.6517e-05,0.0010357,0,-0.0003862,-0.0003862,-0.0086773
-sp_case60_narrow,active_set/guard_false,classic_one_at_a_time/guard_false,5.6517e-05,0.0010357,0,-0.0003862,-0.0003862,-0.0086773
+sp_case60_narrow,active_set/guard_true,classic_simultaneous/guard_true,0.033317399,0.460566,0,-0.1411718,-0.1411718,-2.1112705
+sp_case60_narrow,active_set/guard_true,classic_one_at_a_time/guard_true,0.033317399,0.460566,0,-0.1411718,-0.1411718,-2.1112705
+sp_case60_narrow,active_set/guard_false,classic_simultaneous/guard_false,0.033317399,0.460566,0,-0.1411718,-0.1411718,-2.1112705
+sp_case60_narrow,active_set/guard_false,classic_one_at_a_time/guard_false,0.033317399,0.460566,0,-0.1411718,-0.1411718,-2.1112705
 sp_case60_narrow,classic_simultaneous/guard_true,classic_simultaneous/guard_false,0,0,0,0,0,0
 sp_case60_narrow,classic_simultaneous/guard_true,classic_one_at_a_time/guard_true,0,0,0,0,0,0
 sp_case60_narrow,classic_simultaneous/guard_false,classic_one_at_a_time/guard_false,0,0,0,0,0,0

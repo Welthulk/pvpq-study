@@ -102,6 +102,14 @@ function admissibility(net, case, strategy, guard, lock, types0, vset, converged
   rep = Dict(r.bus => r for r in report.nodes)
   qmin, qmax = getQLimits_pu(net)
   tolq = TOL_Q_MVAR / base
+  # generator units per bus; with one unit the bus limits are the limits of
+  # that machine
+  units = Dict{Int,Int}()
+  for ps in net.prosumpsVec
+    Sparlectra.isGenerator(ps) || continue
+    k = Sparlectra.getPosumerBusIndex(ps)
+    units[k] = get(units, k, 0) + 1
+  end
 
   # Q of each regulated bus from the solved voltages, on the solver's
   # working net: closed links (bus couplers) contracted onto one
@@ -192,7 +200,7 @@ function admissibility(net, case, strategy, guard, lock, types0, vset, converged
     # a run that did not converge leaves an iterate, not a result: its bus
     # type, Q and U are not written
     push!(rows, (case = case, strategy = strategy, guard = guard, lock = lock, bus = b, name = r.bus_name,
-      start_type = string(types0[b]), end_type = converged ? string(getNodeType(net.nodeVec[b])) : "-", state = converged ? s : "-",
+      gen_units = get(units, b, 0), start_type = string(types0[b]), end_type = converged ? string(getNodeType(net.nodeVec[b])) : "-", state = converged ? s : "-",
       qlimit_event = ev === nothing ? "-" : string(ev),
       q_MVar = converged ? qgen[b] : NaN, q_report_MVar = converged ? r.q_gen_MVar : NaN, qmin_MVar = qmin[b] * base, qmax_MVar = qmax[b] * base,
       u_pu = converged ? u : NaN, uset_pu = us,

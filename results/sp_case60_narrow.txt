@@ -1,2 +1,2 @@
-generator 159 at node 6 (bus Birkkamp_110): base Q 7.512 Mvar, band 4.0 .. 5.5 Mvar (was -35.0 .. 35.0)
-generator 160 at node 60 (bus Westtal_110): base Q 4.935 Mvar, band 4.0 .. 5.5 Mvar (was -35.0 .. 35.0)
+generator 159 at node 6 (bus Birkkamp_110): base Q 7.258 Mvar, band 4.0 .. 5.5 Mvar (was -35.0 .. 35.0)
+generator 160 at node 60 (bus Westtal_110): base Q 5.711 Mvar, band 4.0 .. 5.5 Mvar (was -35.0 .. 35.0)

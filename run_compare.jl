@@ -24,9 +24,9 @@ const PKG_MPOWER = joinpath(pkgdir(Sparlectra), "data", "mpower")
 # keeps its band. The 3 to 4 MW units of the case are PQ injections.
 const NARROW_GENERATORS = [159, 160]
 # the band of both machines, 4.0 .. 5.5 Mvar (0.015 pu at 100 MVA, below
-# the 0.02 pu of the guard). Base Q in sp_case60 (active set): 7.5 Mvar at
-# generator 159 and 4.9 Mvar at 160, so the upper limit binds at 159 and 160
-# stays inside its band.
+# the 0.02 pu of the guard). Base Q in sp_case60 (active set, outer control
+# loop off) is written to results/sp_case60_narrow.txt: 7.258 Mvar at
+# generator 159 and 5.711 Mvar at 160, both above the band.
 const NARROW_QMIN_MVAR = 4.0
 const NARROW_QMAX_MVAR = 5.5
 
@@ -61,6 +61,13 @@ function run_case(case::AbstractString, strategy::AbstractString; guard::Bool = 
   net = redirect_stdout(() -> importSCF(joinpath(CASES, case * ".scf.json")), devnull)
   types0 = [getNodeType(n) for n in net.nodeVec]
   vset = Sparlectra._bus_voltage_setpoints_from_prosumers(net)
+  # PV buses whose Q band is below the guard threshold min_q_range_pu: with
+  # narrow_range_mode lock_pq the guard keeps them PV and takes them out of
+  # the PQ->PV release, so the first limit they reach holds them there. The
+  # solver counter `guarded` counts only buses the guard turns into PQ
+  # before the solve, so it stays 0 for these buses.
+  qmin0, qmax0 = getQLimits_pu(net)
+  narrow = count(i -> types0[i] == Sparlectra.PV && qmax0[i] - qmin0[i] < cfg.powerflow.qlimits.guard_min_q_range_pu, eachindex(types0))
   res = redirect_stdout(() -> run_sparlectra(net = net, config = cfg), devnull)
   d = res.diagnostics
   calcNetLosses!(net)
@@ -75,7 +82,7 @@ function run_case(case::AbstractString, strategy::AbstractString; guard::Bool = 
   row = (case = case, strategy = strategy, guard = guard, converged = res.final_converged, iterations = res.iterations,
     switching_rounds = get(d, :qlimit_active_set_changes, 0), pv_pq_events = get(d, :pv_pq_switching_events, 0),
     cycle = get(d, :oscillating_buses, 0) > 0 || res.reason === :max_switching_exceeded, oscillating_buses = get(d, :oscillating_buses, 0),
-    guarded = get(d, :guarded_narrow_q_pv_buses, 0), pv_to_pq = pv_to_pq, slack_p_MW = slack_p, slack_q_MVar = slack_q, loss_MW = ploss, reason = res.reason)
+    narrow_band_pv_buses = narrow, guarded = get(d, :guarded_narrow_q_pv_buses, 0), control_status = res.control_status, pv_to_pq = pv_to_pq, slack_p_MW = slack_p, slack_q_MVar = slack_q, loss_MW = ploss, reason = res.reason)
   adm, qv_min_eig = admissibility(net, case, strategy, guard, "-", types0, vset, res.final_converged)
   v = res.final_converged ? violations(adm) : NO_VIOLATIONS
   row = merge(row, v, (qv_min_eig = qv_min_eig,))

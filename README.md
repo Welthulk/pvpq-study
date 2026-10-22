@@ -31,9 +31,18 @@ with a voltage regulator (generators 159 and 160) get a reactive band of
 
 Settings: rectangular Newton-Raphson, tolerance 1e-6 pu, at most 80
 iterations, classic start, every automatic aid off (rescue, start projection,
-automatic damping, merit, trust region, DC fallback). The guard for narrow
-reactive bands (`power_flow.qlimits.guard`, default on, `min_q_range_pu` 0.02,
+automatic damping, merit, trust region, DC fallback). The outer control loop
+is off (`control.enabled: false`): the tap changer of sp_case14 and the two
+phase-shifting transformers and the SVC of sp_case60 stay at the positions of
+the case file, so every run is one Newton solve with the Q-limit strategy
+alone (`control_status` in `runs.csv`). The guard for narrow reactive bands
+(`power_flow.qlimits.guard`, default on, `min_q_range_pu` 0.02,
 `narrow_range_mode` lock_pq) is on in the runs A and on and off in the runs B.
+Under lock_pq the guard keeps a PV bus with a narrower band PV and takes it
+out of the PQ to PV release, so the first limit it reaches holds it there.
+`narrow_band_pv_buses` in `runs.csv` counts these buses; the solver counter
+`guarded` counts only buses the guard turns into PQ before the solve and
+stays 0 for them.
 
 ## Installation
 
@@ -128,7 +137,7 @@ deletes `results/` and writes it new: `runs.csv`, `pairs.csv`,
 `sp_case60_narrow.txt`, the final solutions in `results/solutions/`, the
 configuration of every run in `results/configs/`, and the two figures. It
 also rewrites the networks in `cases/`. Two runs one after the other took
-56.5 s and 56.8 s wall time (`time julia reproduce.jl`, same
+55.8 s and 61.9 s wall time (`time julia reproduce.jl`, same
 machine and Julia version as above).
 
 Check: after a run, look at
@@ -185,7 +194,7 @@ Runs A (guard on):
 | case14_zeng | active_set | yes | 7 | 3 | -0.365 | 22.472 | 21.945 |
 | case14_zeng | classic_simultaneous | yes | 9 | 4 | -0.804 | 18.422 | 21.506 |
 | case14_zeng | classic_one_at_a_time | yes | 11 | 2 | -0.371 | 22.257 | 21.939 |
-| sp_case14 | all three | yes | 4 | 0 | 19.705 | 13.205 | 1.705 |
+| sp_case14 | all three | yes | 1 | 0 | 19.726 | 13.261 | 1.726 |
 | sp_case118 | active_set | yes | 5 | 10 | 267.196 | 39.638 | 139.196 |
 | sp_case118 | classic_simultaneous | yes | 8 | 10 | 267.196 | 39.638 | 139.196 |
 | sp_case118 | classic_one_at_a_time | yes | 35 | 10 | 267.196 | 39.638 | 139.196 |
@@ -198,23 +207,33 @@ Pairwise, case14_zeng:
 | active_set / classic_one_at_a_time | 0.0013 | 0.009 | 1 | -0.006 |
 | classic_simultaneous / classic_one_at_a_time | 0.0118 | 0.305 | 2 | 0.433 |
 
-In sp_case14 and sp_case118 the three final solutions agree within 2e-7
-degrees and 5e-6 MW.
+In sp_case14 the three final solutions are identical, in sp_case118 they
+agree within 2e-7 degrees and 5e-6 MW.
 
 Runs B, sp_case60_narrow:
 
 | Strategy | Guard | Converged | Iterations |
 |---|---|---|---|
-| active_set | on / off | yes | 5 / 5 |
-| classic_simultaneous | on / off | yes | 7 / 7 |
-| classic_one_at_a_time | on / off | yes | 7 / 7 |
+| active_set | on / off | yes | 4 / 4 |
+| classic_simultaneous | on / off | yes | 4 / 4 |
+| classic_one_at_a_time | on / off | yes | 4 / 4 |
+
+Both machines would need more than their band at the set point
+(`sp_case60_narrow.txt`: 7.258 and 5.711 Mvar against 5.5 Mvar). The active
+set ends with both at 5.5 Mvar. The two classic strategies end on one
+solution with Birkkamp_110 at 5.5 Mvar and Westtal_110 still holding its
+voltage with 6.136 Mvar, 0.636 Mvar above its limit. Between the active set
+and the classic solutions the voltage differs by up to 0.0333 pu and the
+angle by 0.461 degrees; losses differ by 0.141 MW (`pairs.csv`).
 
 With and without the guard each strategy ends on the same solution: every
-column of `runs.csv` and every difference in `pairs.csv` is equal, and
-`guarded` is 0 in all six runs. Generator 160
-stays PV inside its band. Run as PQ through
-`power_flow.qlimits.lock_pv_to_pq_buses`, generator 159 alone converges (5
-iterations), generator 160 alone and both together do not (80 iterations).
+column of `runs.csv` and every difference in `pairs.csv` is equal. Both
+machines are under the guard (`narrow_band_pv_buses` 2). The guard only
+stops the PQ to PV release; in this case it changes no result.
+
+Run as PQ through `power_flow.qlimits.lock_pv_to_pq_buses`, generator 159
+alone converges (7 iterations), generator 160 alone and both together do not
+(80 iterations).
 `narrow_lock.csv` lists Sparlectra bus indices (11, 25), while
 `sp_case60_narrow.txt` names the SCF node numbers of the generators (6,
 60); both are the same buses, Birkkamp_110 and Westtal_110.
@@ -265,7 +284,8 @@ points the solver holds, read before the solve. On a bus with a regulating
 or reference unit `getQLimits_pu` is the sum of the limits of those units
 plus the fixed Q of the other generator units of the bus, which do not widen
 the band; it bounds the total generator Q of the bus. In the four networks
-every regulated bus has one generator unit. Q is the total generator Q of
+every regulated bus has one generator unit (`gen_units` in
+`consistency.csv`), so the bus limits are those of the machine. Q is the total generator Q of
 the bus, from the solved voltages with the Sparlectra Ybus of the working
 net the solver uses (closed bus couplers contracted), plus the load of the
 bus. The script stops if this Ybus does not reproduce P at every bus except
@@ -274,33 +294,34 @@ Mvar. The Q of the Sparlectra report is kept in `q_report_MVar`. The
 tolerances are constants in `admissibility.jl`, chosen here; the paper gives
 none.
 
-Stability constraints (6), (7) of Zhao et al. 2008 (buses at a limit,
-violating buses per check, buses that fail any check):
+Checks (a), (b), (c) after Zhao et al. 2008 (eq. 3, 5, 6, 7 and the sign of
+dU/dQ): buses at a limit, violating buses per check, buses that fail any
+check.
 
 | Network | Strategy | Guard | Lock list | Regulated buses | At a limit | (a) | (b) | (c) | Inconsistent buses | qv_min_eig |
 |---|---|---|---|---|---|---|---|---|---|---|
 | case14_zeng | active_set | on | - | 5 | 3 | 0 | 0 | 0 | 0 | 0.856 |
 | case14_zeng | classic_simultaneous | on | - | 5 | 4 | 3 | 0 | 0 | 3 | 0.103 |
 | case14_zeng | classic_one_at_a_time | on | - | 5 | 2 | 0 | 1 | 0 | 1 | 2.610 |
-| sp_case14 | active_set | on | - | 3 | 0 | 0 | 0 | 0 | 0 | 0.399 |
-| sp_case14 | classic_simultaneous | on | - | 3 | 0 | 0 | 0 | 0 | 0 | 0.399 |
-| sp_case14 | classic_one_at_a_time | on | - | 3 | 0 | 0 | 0 | 0 | 0 | 0.399 |
+| sp_case14 | active_set | on | - | 3 | 0 | 0 | 0 | 0 | 0 | 0.396 |
+| sp_case14 | classic_simultaneous | on | - | 3 | 0 | 0 | 0 | 0 | 0 | 0.396 |
+| sp_case14 | classic_one_at_a_time | on | - | 3 | 0 | 0 | 0 | 0 | 0 | 0.396 |
 | sp_case118 | active_set | on | - | 54 | 10 | 0 | 0 | 0 | 0 | 7.858 |
 | sp_case118 | classic_simultaneous | on | - | 54 | 10 | 0 | 0 | 0 | 0 | 7.858 |
 | sp_case118 | classic_one_at_a_time | on | - | 54 | 10 | 0 | 0 | 0 | 0 | 7.858 |
-| sp_case60_narrow | active_set | on | - | 4 | 1 | 0 | 0 | 0 | 0 | 0.070 |
-| sp_case60_narrow | active_set | off | - | 4 | 1 | 0 | 0 | 0 | 0 | 0.070 |
-| sp_case60_narrow | classic_simultaneous | on | - | 4 | 1 | 0 | 0 | 0 | 0 | 0.070 |
-| sp_case60_narrow | classic_simultaneous | off | - | 4 | 1 | 0 | 0 | 0 | 0 | 0.070 |
-| sp_case60_narrow | classic_one_at_a_time | on | - | 4 | 1 | 0 | 0 | 0 | 0 | 0.070 |
-| sp_case60_narrow | classic_one_at_a_time | off | - | 4 | 1 | 0 | 0 | 0 | 0 | 0.070 |
+| sp_case60_narrow | active_set | on | - | 4 | 2 | 0 | 0 | 0 | 0 | 0.007 |
+| sp_case60_narrow | active_set | off | - | 4 | 2 | 0 | 0 | 0 | 0 | 0.007 |
+| sp_case60_narrow | classic_simultaneous | on | - | 4 | 1 | 0 | 1 | 0 | 1 | 0.070 |
+| sp_case60_narrow | classic_simultaneous | off | - | 4 | 1 | 0 | 1 | 0 | 1 | 0.070 |
+| sp_case60_narrow | classic_one_at_a_time | on | - | 4 | 1 | 0 | 1 | 0 | 1 | 0.070 |
+| sp_case60_narrow | classic_one_at_a_time | off | - | 4 | 1 | 0 | 1 | 0 | 1 | 0.070 |
 | sp_case60_narrow | active_set | off | 11 | 4 | 2 | 1 | 0 | 0 | 1 | - |
 
 Q is computed from the solved voltages on the contracted network (closed
 bus couplers merged, as the solver does; the only closed coupler in
 sp_case60_narrow joins Neubach_110 and Neubach_110b). At Birkkamp_110, a PV
 bus at its upper limit and not at a coupler, the Sparlectra report of the two
-classic strategies gives 7.389 Mvar generator Q, above the limit of 5.5 Mvar;
+classic strategies gives 7.258 Mvar generator Q, above the limit of 5.5 Mvar;
 the voltages give 5.500 Mvar. The active set report agrees with the voltages.
 
 The lock list runs with bus 25 and with 11 and 25 did not converge and are
@@ -314,7 +335,8 @@ Violating buses:
 | case14_zeng, classic_simultaneous | 3 | qmax | 40.000 | 0 .. 40 | 1.0179 | 1.010 | 0.999 | (a) |
 | case14_zeng, classic_simultaneous | 6 | qmax | 24.000 | -6 .. 24 | 1.0790 | 1.070 | 0.889 | (a) |
 | case14_zeng, classic_one_at_a_time | 6 | vset (PV) | 24.678 | -6 .. 24 | 1.0700 | 1.070 | - | (b) |
-| sp_case60_narrow, lock list 11 | 11 Birkkamp_110 | qmin | 4.000 | 4.0 .. 5.5 | 0.9966 | 1.010 | 0.636 | (a) |
+| sp_case60_narrow, both classic strategies, guard on and off | 25 Westtal_110 | vset (PV) | 6.136 | 4.0 .. 5.5 | 1.0200 | 1.020 | - | (b) |
+| sp_case60_narrow, lock list 11 | 11 Birkkamp_110 | qmin | 4.000 | 4.0 .. 5.5 | 0.9855 | 1.010 | 0.805 | (a) |
 
 dU/dQ in pu per pu at 100 MVA.
 
@@ -332,15 +354,21 @@ dU/dQ in pu per pu at 100 MVA.
   paper.
 - sp_case14 and sp_case118: all three solutions pass; the 10 buses of
   sp_case118 at a limit sit on the correct side of their set point.
-- sp_case60_narrow: all six runs pass. Birkkamp_110 runs at its upper limit
-  of 5.5 Mvar with 1.0026 pu in every run, below its set point of 1.01 pu.
-  With the lock list on bus 11 the run converges, but Birkkamp_110 is held
-  at its lower limit of 4.0 Mvar with 0.9966 pu, below its set point (eq.
+- sp_case60_narrow: the active set solution is admissible. Both machines
+  run at 5.5 Mvar below their set points (Birkkamp_110 0.9966 pu against
+  1.01, Westtal_110 0.9883 pu against 1.02). The smallest eigenvalue of the
+  reduced Jacobian is 0.007, a tenth of that of the classic solutions, and
+  dU/dQ at Westtal_110 is 5.6 pu/pu: this operating point is much closer to
+  voltage instability. The classic solutions are not admissible: Westtal_110
+  holds 1.02 pu with 6.136 Mvar, above its limit (eq. 5), in all four
+  classic runs.
+- With the lock list on bus 11 the run converges, but Birkkamp_110 is held
+  at its lower limit of 4.0 Mvar with 0.9855 pu, below its set point (eq.
   6): its regulator would raise Q. This converged point is not an admissible
   operating point.
-- In sp_case60_narrow Sparlectra keeps the bus type of Birkkamp_110 at PV in
-  the solved net, although the bus runs at a limit with the voltage off its
-  set point. "Buses PV to PQ" reads the Sparlectra bus types and is
+- In sp_case60_narrow Sparlectra keeps the bus type of both machines at PV
+  in the solved net, also when the bus runs at a limit with the voltage off
+  its set point. "Buses PV to PQ" reads the Sparlectra bus types and is
   therefore 0 for this case.
 
 ## Limits
@@ -350,9 +378,11 @@ dU/dQ in pu per pu at 100 MVA.
   General registry yet). One start (classic), one tolerance.
 - "Buses PV to PQ" counts buses that start as PV and end as PQ; switching
   rounds and events are the counters of the solver status
-  (`qlimit_active_set_changes`, `pv_pq_switching_events`); none of the
-  runs in `runs.csv` reported an oscillating bus.
+  (`qlimit_active_set_changes`, `pv_pq_switching_events`).
 - The narrow band of `sp_case60_narrow` is set by hand.
+- Tap changers, phase shifters and the SVC stay at the positions of the case
+  files; the interaction of the Q-limit strategies with an outer control
+  loop is not part of this study.
 - The physical check covers eq. 3, 5, 6 and 7 of [1] and the sign of
   dU/dQ at the regulated buses at a limit. At a bus held at its set point
   dU/dQ is zero by definition and not tested; load buses enter only

@@ -1,9 +1,14 @@
 # Settings of every run: the solver settings of the Zeng/Chiang cases shipped
 # with Sparlectra (data/scf/case14_zeng_p306_*.config.yaml), with every
 # automatic machinery off (rescue, auto mode, damping, start projection,
-# APSLF start, merit, trust region). The strategy and the guard are set per
-# run in run_compare.jl.
+# APSLF start, merit, trust region) and the outer control loop off: the tap
+# changers, phase shifters and SVC of sp_case14 and sp_case60 keep the
+# positions of the case file, so a run is one Newton solve with the Q-limit
+# strategy alone. The strategy and the guard are set per run in
+# run_compare.jl.
 config_version: 1
+control:
+  enabled: false
 power_flow:
   apslf_start:
     enabled: false
