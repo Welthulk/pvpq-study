@@ -123,7 +123,7 @@ function compare_softpv_main()
     println(io)
     println(io, "H2: max |dU| in pu of the Q(U) droop solution (active_set, start uset) to each switched solution;")
     println(io, "in brackets the inconsistent buses of the switched solution (0 = fulfils eq. 5 to 7)")
-    for (variant, band) in (("Z-all", "-"), ("Z-one", "-"), ("N-band", "-"), ("N-fail", "qbase_m1"))
+    for (variant, band) in (("Z-all", "-"), ("Z-one", "-"), ("N-band", "-"), ("N-fail", "qbase_m1"), ("118-all", "-"))
       sel = [p for p in pairs if p.variant == variant && p.band == band && p.control == "qu" && p.start == "uset" && p.strategy == "active_set"]
       isempty(sel) && continue
       refs = unique([(p.ref_strategy, p.ref_inconsistent_buses) for p in sel])

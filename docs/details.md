@@ -277,7 +277,8 @@ converge is repeated with `autodamp: true` and marked `damped`.
 
 SCF carries the characteristics (`extra.<machine>.qu_control`,
 `pu_control`); `softpv.jl` writes every variant to `cases/softpv/` and
-solves it from that file.
+solves it from that file. The `points` there are (U in pu, Q or P in pu at
+100 MVA), `qmax_mvar` and `qmin_mvar` are in Mvar.
 
 Coupler note: the pinned Sparlectra does not solve P(U) or Q(U) on a net
 with a closed bus coupler, and sp_case60 has one (Neubach_110 to

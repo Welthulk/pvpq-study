@@ -59,6 +59,11 @@ dU %    active_set (0)                classic_simultaneous (2)      classic_one_
 2       0.000001                      0.083178                      0.083178                      active_set
 5       0.013810                      0.096986                      0.096986                      active_set
 
+118-all:
+dU %    active_set (0)                classic_simultaneous (0)      classic_one_at_a_time (0)     nearest
+0.5     0.002955 damped               0.002955 damped               0.002955 damped               active_set
+1       0.005399 damped               0.005399 damped               0.005399 damped               active_set
+
 Kataoka: Soft-PV (four points: PV inside the band, corners with 10 % of the band over dU_c).
 Run: active_set, start uset, damped only where the undamped run did not converge.
 H5: the Soft-PV solution is nearer to active_set than every Q(U) droop of the same network.
