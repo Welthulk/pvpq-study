@@ -1,11 +1,15 @@
 # run_compare.jl: one network, three Q-limit strategies, same start values and
 # tolerance. Writes one CSV line per run (results/runs.csv) and the final
-# solution of every run (results/solutions/<run>.csv).
+# solution of every run (results/solutions/<run>.csv), and the physical check
+# of every final solution at the voltage-regulated buses
+# (results/consistency.csv, admissibility.jl).
 #
 # usage: julia --project=. run_compare.jl
 
 using Sparlectra
 using Printf
+
+include(joinpath(@__DIR__, "admissibility.jl"))
 
 const ROOT = @__DIR__
 const RESULTS = joinpath(ROOT, "results")
@@ -59,6 +63,7 @@ function run_case(case::AbstractString, strategy::AbstractString; guard::Bool = 
   cfg = load_sparlectra_config(run_config(strategy, guard))
   net = redirect_stdout(() -> importSCF(joinpath(CASES, case * ".scf.json")), devnull)
   types0 = [getNodeType(n) for n in net.nodeVec]
+  vset = Sparlectra._bus_voltage_setpoints_from_prosumers(net)
   res = redirect_stdout(() -> run_sparlectra(net = net, config = cfg), devnull)
   d = res.diagnostics
   calcNetLosses!(net)
@@ -74,8 +79,11 @@ function run_case(case::AbstractString, strategy::AbstractString; guard::Bool = 
     switching_rounds = get(d, :qlimit_active_set_changes, 0), pv_pq_events = get(d, :pv_pq_switching_events, 0),
     cycle = get(d, :oscillating_buses, 0) > 0 || res.reason === :max_switching_exceeded, oscillating_buses = get(d, :oscillating_buses, 0),
     guarded = get(d, :guarded_narrow_q_pv_buses, 0), pv_to_pq = pv_to_pq, slack_p_MW = slack_p, slack_q_MVar = slack_q, loss_MW = ploss, reason = res.reason)
+  adm, qv_min_eig = admissibility(net, case, strategy, guard, "-", types0, vset, res.final_converged)
+  v = res.final_converged ? violations(adm) : (viol_a = "-", viol_b = "-", viol_c = "-")
+  row = merge(row, v, (qv_min_eig = qv_min_eig,))
   sol = [(bus = i, name = n.comp.cName, vn_kV = n.comp.cVN, type = string(types1[i]), vm_pu = something(n._vm_pu, NaN), va_deg = something(n._va_deg, NaN)) for (i, n) in enumerate(net.nodeVec)]
-  return row, sol
+  return row, sol, adm
 end
 
 # --- sp_case60_narrow ----------------------------------------------------------
@@ -123,19 +131,22 @@ function main()
   prepare_cases()
   mkpath(joinpath(RESULTS, "solutions"))
   rows = []
+  adm = []
   # runs A: the three strategies with the default guard
   for case in ("case14_zeng", "sp_case14", "sp_case118")
     for s in STRATEGIES
-      row, sol = run_case(case, s; guard = true)
+      row, sol, a = run_case(case, s; guard = true)
       push!(rows, row)
+      append!(adm, a)
       write_rows(joinpath(RESULTS, "solutions", "$(case)_$(s)_guard_on.csv"), sol)
     end
   end
   # runs B: sp_case60_narrow, every strategy with and without the guard
   build_narrow_case()
   for s in STRATEGIES, g in (true, false)
-    row, sol = run_case("sp_case60_narrow", s; guard = g)
+    row, sol, a = run_case("sp_case60_narrow", s; guard = g)
     push!(rows, row)
+    append!(adm, a)
     write_rows(joinpath(RESULTS, "solutions", "sp_case60_narrow_$(s)_guard_$(g ? "on" : "off").csv"), sol)
   end
   write_rows(joinpath(RESULTS, "runs.csv"), rows)
@@ -148,12 +159,18 @@ function main()
     write(f, replace(read(f, String), "    guard:\n      enabled: false" => "    guard:\n      enabled: false\n    lock_pv_to_pq_buses: [$(join(buses, ", "))]"))
     cfg = load_sparlectra_config(f)
     net = redirect_stdout(() -> importSCF(joinpath(CASES, "sp_case60_narrow.scf.json")), devnull)
+    types0 = [getNodeType(n) for n in net.nodeVec]
+    vset = Sparlectra._bus_voltage_setpoints_from_prosumers(net)
     res = redirect_stdout(() -> run_sparlectra(net = net, config = cfg), devnull)
-    push!(lock_rows, (locked_buses = join(buses, " "), names = join([net.nodeVec[b].comp.cName for b in buses], " "), converged = res.final_converged, iterations = res.iterations))
+    a, _ = admissibility(net, "sp_case60_narrow", "active_set", false, join(buses, " "), types0, vset, res.final_converged)
+    append!(adm, a)
+    v = res.final_converged ? violations(a) : (viol_a = "-", viol_b = "-", viol_c = "-")
+    push!(lock_rows, merge((locked_buses = join(buses, " "), names = join([net.nodeVec[b].comp.cName for b in buses], " "), converged = res.final_converged, iterations = res.iterations), v))
   end
   rm(joinpath(RESULTS, "configs", "active_set_guard_off.yaml"))
   run_config("active_set", false)
   write_rows(joinpath(RESULTS, "narrow_lock.csv"), lock_rows)
+  write_rows(joinpath(RESULTS, "consistency.csv"), adm)
   println("run_compare: ", length(rows), " runs, results/runs.csv")
 end
 

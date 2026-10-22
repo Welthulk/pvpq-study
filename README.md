@@ -4,15 +4,17 @@ A small reproducible comparison of the three Q-limit strategies of
 [Sparlectra.jl](https://github.com/Welthulk/Sparlectra.jl) 0.60.0: `active_set`,
 `classic_simultaneous` and `classic_one_at_a_time`.
 That the switching strategy can decide the final solution is known
-(Zeng and Chiang, IJEPES 2023; Sundaresh and Rao, Sadhana 2015). This
+(Zeng et al., IJEPES 2023 [2]; Sundaresh and Rao, Sadhana 2015 [3]). This
 repository is the open, recomputable version in Julia, plus a case with
-machines of a narrow reactive band.
+machines of a narrow reactive band, and a check whether each converged
+solution is an admissible operating point.
 
 ## Layout
 
 | File | Content |
 |---|---|
-| `run_compare.jl` | one network, three strategies, same start values and tolerance; one CSV line per run (`results/runs.csv`), the final solution of every run (`results/solutions/`), the band of the narrow band case (`results/sp_case60_narrow.txt`) and the lock list check (`results/narrow_lock.csv`) |
+| `run_compare.jl` | one network, three strategies, same start values and tolerance; one CSV line per run (`results/runs.csv`), the final solution of every run (`results/solutions/`), the band of the narrow band case (`results/sp_case60_narrow.txt`), the lock list check (`results/narrow_lock.csv`) and the physical check of every solution (`results/consistency.csv`) |
+| `admissibility.jl` | the physical check, called by `run_compare.jl` for every solved run |
 | `compare.jl` | pairwise comparison of the final solutions (`results/pairs.csv`) and the decision rule for the main figure (`results/decision.txt`) |
 | `figures.jl` | figures as PNG, 1200 x 627 px, drawn offscreen (`GKSwstype=100`) |
 | `reproduce.jl` | everything above from a fresh checkout |
@@ -94,28 +96,10 @@ Needed to clone this repository.
 
 ### 3. Get the study
 
-The repository is private; your GitHub account needs read access. Over
-HTTPS git asks for the user name and a personal access token, unless a
-credential helper is set up (for example by `gh auth login`); over SSH it
-uses your SSH key:
+The repository is public; cloning needs no credentials:
 
 ```
 git clone https://github.com/Welthulk/pvpq-study.git
-cd pvpq-study
-```
-
-or
-
-```
-git clone git@github.com:Welthulk/pvpq-study.git
-cd pvpq-study
-```
-
-or with the GitHub CLI, which handles the login:
-
-```
-gh auth login
-gh repo clone Welthulk/pvpq-study
 cd pvpq-study
 ```
 
@@ -129,8 +113,8 @@ julia --project=. -e "using Pkg; Pkg.instantiate()"
 
 This downloads the General registry, the pinned packages and Sparlectra at
 commit a3cd5bc9 from GitHub (public, no credentials), then precompiles.
-On an empty Julia depot this took 2 min 49 s here (AMD Ryzen AI 7 350,
-16 threads, Linux, Julia 1.13.2), of which 65 s precompilation.
+On an empty Julia depot this took 2 min 49 s here (16 threads, Linux,
+Julia 1.13.2), of which 65 s precompilation.
 
 ## Reproduce
 
@@ -140,11 +124,12 @@ julia reproduce.jl
 
 `reproduce.jl` runs `Pkg.instantiate()` again (fast once installed),
 deletes `results/` and writes it new: `runs.csv`, `pairs.csv`,
-`decision.txt`, `narrow_lock.csv`, `sp_case60_narrow.txt`, the final
-solutions in `results/solutions/`, the configuration of every run in
-`results/configs/`, and the two figures. It also rewrites the networks in
-`cases/`. Two runs one after the other took 64 s and 63 s (same machine
-and Julia version as above).
+`decision.txt`, `narrow_lock.csv`, `consistency.csv`,
+`sp_case60_narrow.txt`, the final solutions in `results/solutions/`, the
+configuration of every run in `results/configs/`, and the two figures. It
+also rewrites the networks in `cases/`. Two runs one after the other took
+1 min 18 s and 1 min 10 s wall time (`time julia reproduce.jl`, same
+machine and Julia version as above).
 
 Check: after a run, look at
 
@@ -153,10 +138,10 @@ git status --short results/ cases/
 ```
 
 It shows nothing: every file, the PNGs included, is identical to the
-committed one. On the machine above this held in two runs of `reproduce.jl`
-and three runs of `figures.jl` alone, in a Wayland desktop session. On
-another machine (fonts, graphics library) the PNGs may differ in bytes; the
-CSV files must not.
+committed one. On the machine above two runs of `reproduce.jl` in a row
+gave byte-identical files in `results/` and `cases/`. On another machine
+(fonts, graphics library) the PNGs may differ in bytes; the CSV files must
+not.
 
 ### Updating later
 
@@ -230,12 +215,110 @@ without the guard the active set ends on the same solution. Generator 160
 stays PV inside its band. Run as PQ through
 `power_flow.qlimits.lock_pv_to_pq_buses`, generator 159 alone converges (5
 iterations), generator 160 alone and both together do not (80 iterations).
+`narrow_lock.csv` lists Sparlectra bus indices (11, 25), while
+`sp_case60_narrow.txt` names the SCF node numbers of the generators (6,
+60); both are the same buses, Birkkamp_110 and Westtal_110.
 Sparlectra 0.50.0 locked both machines as PQ at the middle of their band
 from the start, and the active set with the guard did not converge (80
 iterations).
 
 Figures: `results/fig5a_voltage_profile.png` (main figure, case14_zeng,
 selected by the rule in `compare.jl`), `results/fig5b_narrow_guard.png`.
+
+### Physical admissibility
+
+A converged power flow is not yet an operating point. Every final solution
+is checked at each bus with a voltage-regulating or reference unit
+(`admissibility.jl`): one row per bus and run in `results/consistency.csv`,
+the number of violating buses per check in `runs.csv` and
+`narrow_lock.csv` (`viol_a`, `viol_b`, `viol_c`).
+
+The criterion follows Zhao, Chiang, Li and Ju [1]. A generator either
+holds its voltage set point with its reactive power inside the limits, or
+it runs at one of its limits. At the upper limit its voltage must be at or
+below the set point, at the lower limit at or above it (eq. 6 and 7 of the
+paper). A machine at its upper limit with the voltage above the set point
+could lower its excitation and get back to the set point; the solution
+does not describe what its regulator would do. The paper calls such a
+solution abnormal, and one such bus is enough. It also links these
+conditions to the voltage stability criterion that dU/dQ at a bus must be
+positive.
+
+How it is tested:
+
+- State of each bus from the solved values: `vset` when
+  |U - U_set| <= 1e-5 pu (the slack always), else `qmax` or `qmin` when Q
+  is within 1e-4 pu (0.01 Mvar) of that limit, else `none`.
+- (a) At `qmax` U <= U_set + 1e-5 pu, at `qmin` U >= U_set - 1e-5 pu. A bus
+  in state `none` (neither at its set point nor at a limit) fails as well.
+- (b) At `vset`: Q_min - 1e-4 pu <= Q <= Q_max + 1e-4 pu.
+- (c) At `qmax` and `qmin`: the reactive injection of the bus is raised by
+  1e-3 pu (0.1 Mvar), every bus type is kept, and the power flow is solved
+  again from the solved state (Newton, 1e-12 pu). The check requires
+  dU/dQ = (U_new - U) / 1e-3 > 0. The diagonal entry of the inverse reduced
+  Jacobian (J_QV - J_Qtheta J_Ptheta^-1 J_PV) is written next to it
+  (`dudq_jacobian`); `runs.csv` also gets the smallest real eigenvalue of
+  that matrix (`qv_min_eig`).
+
+Q limits and set points come from Sparlectra: `getQLimits_pu` (the sum of
+the units of a bus) and the set points the solver holds, read before the
+solve. Q comes from the solved voltages with the Sparlectra Ybus of the
+working net the solver uses (closed bus couplers contracted), plus the load
+of the bus. The script stops if this Ybus does not reproduce P at every bus
+and Q at every bus without a regulating unit within 1e-3 MW or Mvar. The Q
+of the Sparlectra report is kept in `q_report_MVar`. The tolerances are
+chosen here; the paper gives none.
+
+Counts (buses at a limit, then violating buses per check):
+
+| Network | Strategy | Guard | Regulated buses | At a limit | (a) | (b) | (c) | qv_min_eig |
+|---|---|---|---|---|---|---|---|---|
+| case14_zeng | active_set | on | 5 | 3 | 0 | 0 | 0 | 0.856 |
+| case14_zeng | classic_simultaneous | on | 5 | 4 | 3 | 0 | 0 | 0.103 |
+| case14_zeng | classic_one_at_a_time | on | 5 | 2 | 0 | 1 | 0 | 2.610 |
+| sp_case14 | all three | on | 3 | 0 | 0 | 0 | 0 | 0.399 |
+| sp_case118 | all three | on | 54 | 10 | 0 | 0 | 0 | 7.858 |
+| sp_case60_narrow | all three | on / off | 4 | 1 | 0 | 0 | 0 | 0.070 |
+| sp_case60_narrow, lock list 11 | active_set | off | 4 | 2 | 1 | 0 | 0 | - |
+
+The lock list runs with bus 25 and with 11 and 25 did not converge and are
+not checked.
+
+Violating buses:
+
+| Run | Bus | State | Q Mvar | Limits Mvar | U pu | U_set pu | dU/dQ | Fails |
+|---|---|---|---|---|---|---|---|---|
+| case14_zeng, classic_simultaneous | 2 | qmax | 50.000 | -40 .. 50 | 1.0568 | 1.045 | 0.968 | (a) |
+| case14_zeng, classic_simultaneous | 3 | qmax | 40.000 | 0 .. 40 | 1.0179 | 1.010 | 0.999 | (a) |
+| case14_zeng, classic_simultaneous | 6 | qmax | 24.000 | -6 .. 24 | 1.0790 | 1.070 | 0.889 | (a) |
+| case14_zeng, classic_one_at_a_time | 6 | vset (PV) | 24.678 | -6 .. 24 | 1.0700 | 1.070 | - | (b) |
+| sp_case60_narrow, lock list 11 | 11 Birkkamp_110 | qmin | 4.000 | 4.0 .. 5.5 | 0.9966 | 1.010 | 0.636 | (a) |
+
+dU/dQ in pu per pu at 100 MVA.
+
+- case14_zeng: of the three converged solutions only the active set one is
+  admissible. `classic_simultaneous` ends with three machines at their
+  upper limit and the voltage above the set point (eq. 6).
+  `classic_one_at_a_time` leaves bus 6 as PV with 24.678 Mvar, above its
+  limit of 24 Mvar (eq. 5).
+- Check (c) passes at every bus at a limit, also at the three buses that
+  fail (a). The paper argues that eq. 6 and 7 and the sign of dU/dQ are
+  equivalent; on these solved states they are not, and only the
+  voltage-side test finds the abnormal buses.
+- sp_case14 and sp_case118: all three solutions pass; the 10 buses of
+  sp_case118 at a limit sit on the correct side of their set point.
+- sp_case60_narrow: all six runs pass. Birkkamp_110 runs at its upper
+  limit of 5.5 Mvar with 1.0026 pu in every run, below its set point of
+  1.01 pu. With the lock list on bus 11 the run
+  converges, but Birkkamp_110 is held at its lower limit of 4.0 Mvar with
+  0.9966 pu, below its set point (eq. 7): its regulator would raise Q. This
+  converged point is not an admissible operating point.
+- In sp_case60_narrow, which has closed bus couplers, Sparlectra keeps the
+  bus type of Birkkamp_110 at PV in the solved net, although the bus runs
+  at a limit with the voltage off its set point. The classic strategies
+  report its Q as 7.389 Mvar, outside the band; from the solved voltages
+  it is 5.500 Mvar. The check uses the value from the voltages. "Buses PV
+  to PQ" reads the Sparlectra bus types and is therefore 0 for this case.
 
 ## Limits
 
@@ -249,8 +332,22 @@ selected by the rule in `compare.jl`), `results/fig5b_narrow_guard.png`.
 - The narrow band of `sp_case60_narrow` is set by hand; two other bands
   (1 Mvar below the base reactive power of each machine, and -1.0 to
   0.5 Mvar) did not converge with any strategy.
+- The physical check covers eq. 3, 5, 6 and 7 of [1] and the sign of
+  dU/dQ at the regulated buses at a limit. At a bus held at its set point
+  dU/dQ is zero by definition and not tested; load buses enter only
+  through `qv_min_eig`. Not run: a continuation power flow or loadability
+  limit, which [1] uses as independent check, and the load increase test
+  for the lower branch of the PV curve.
 
 ## References
 
-- Zeng, Chiang: IJEPES 2023 (PV/PQ switching and multiple solutions).
-- Sundaresh, Rao: Sadhana 2015.
+1. Jinquan Zhao, Hsiao-Dong Chiang, Hua Li, Ping Ju: "On PV-PQ bus type
+   switching logic in power flow computation", Hohai University, Nanjing,
+   and Cornell University, Ithaca. The paper does not print venue or year;
+   it is cited as 16th Power Systems Computation Conference (PSCC),
+   Glasgow, 2008.
+2. Zeng, Chiang, Neves, Alberto: "On the accuracy of power flow and load
+   margin calculation caused by incorrect logical PV/PQ switching:
+   Analytics and improved methods", International Journal of Electrical
+   Power and Energy Systems 147 (2023) 108905.
+3. Sundaresh, Rao: Sadhana 2015.

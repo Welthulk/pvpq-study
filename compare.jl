@@ -1,5 +1,5 @@
 # compare.jl: pairwise comparison of the final solutions of results/runs.csv
-# (results/pairs.csv) and the decision rule of the task (results/decision.txt).
+# (results/pairs.csv) and the rule that picks the main figure (results/decision.txt).
 #
 # usage: julia --project=. compare.jl   (after run_compare.jl)
 

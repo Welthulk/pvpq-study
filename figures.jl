@@ -1,4 +1,4 @@
-# figures.jl: the two figures of the task, PNG 1200 x 627 px.
+# figures.jl: the two figures of the study, PNG 1200 x 627 px.
 #   5a voltage profile of the three final solutions of the case with the
 #      largest deviation (results/fig5a_voltage_profile.png), when the
 #      decision rule selects it
