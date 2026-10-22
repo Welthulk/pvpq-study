@@ -244,9 +244,8 @@ Violating buses (dU/dQ in pu per pu at 100 MVA):
 A generator that holds its voltage is a PV bus until Q reaches a limit,
 then a PQ bus. Kataoka [3] replaces this switch by a smooth Q-V curve
 (hyperbolic or sigmoid), so the power flow has no bus type switching. Zhao
-et al. [1] (section 5) object that such a curve masks the true face of the
-problem: with the switching logic the solution point of every generator
-lies on a stable branch, with a smooth curve it can lie on an unstable one.
+et al. [1] (section 5) call such a curve unsuitable for voltage stability
+assessment because it masks the true face of the problem.
 
 Here the voltage regulator of chosen generators is replaced by a Sparlectra
 `QUController` with a linear droop, not Kataoka's sigmoid: Q_max at

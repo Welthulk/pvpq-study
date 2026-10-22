@@ -51,25 +51,23 @@ their Q hysteresis of 0.01 pu.
 
 **Q(U) droop** from (U_set - dU, Q_max) to (U_set + dU, Q_min), dU 0.5 to
 5 % of U_set. The steeper the droop, the nearer the solution to the
-admissible switched one. From 1.0 pu case14_zeng ends at 0.59 to 0.72 pu
-on an unstable solution: converged is not stable, the objection of [1]
-against smooth characteristics.
+admissible switched one. Started from 1.0 pu, case14_zeng ends at 0.59 to
+0.72 pu with all four machines at Q_max, an unstable solution (smallest
+eigenvalue -0.62).
 
 ![Distance of the droop solution to the switched solutions, case14_zeng](results/fig6_zeng_softpv.png)
 
 **Soft-PV after Kataoka [3].** The machine holds U_set within dU_in (0.05
-or 0.1 %) while Q is inside 80 % of its band. The last 10 % on each side
-are spread over dU_c (1, 2 or 5 %).
+or 0.1 %) while Q is inside 80 % of its band; the last 10 % on each side
+are spread over dU_c (1, 2 or 5 %). Distance to the active set solution,
+dU_in 0.1 %:
 
-- sp_case118, dU_in 0.1 %, dU_c 2 %: 0.0019 pu from the active set
-  solution in 6 iterations, the 0.5 % droop 0.0030 pu in 49. Undamped
-  neither converges.
-- case14_zeng: the 0.5 % droop is nearer, 0.0050 pu against 0.0076 pu
-  (dU_in 0.1 %, dU_c 1 %). With dU_c 5 % the run starts at U_set and
-  still ends on the unstable solution, all four machines at Q_max.
-- sp_case60_narrow: dU_c 1 % gives the active set solution, 2 % is
-  0.0008 pu off. The classic solution (Westtal_110 at 6.14 Mvar) is above
-  Q_max and on no characteristic.
+- sp_case118 (damped, undamped neither converges): Soft-PV with dU_c 2 %
+  0.0019 pu in 6 iterations, droop 0.5 % 0.0030 pu in 49.
+- case14_zeng: droop 0.5 % 0.0050 pu, Soft-PV with dU_c 1 % 0.0076 pu.
+  With dU_c 5 % it ends on the unstable solution above.
+- sp_case60_narrow: Soft-PV with dU_c 1 % hits the solution, 2 % is
+  0.0008 pu off.
 
 ![Q(U) droop and Soft-PV, sp_case60_narrow](results/fig8_kataoka.png)
 
@@ -77,11 +75,8 @@ are spread over dU_c (1, 2 or 5 %).
 
 At Q_max the voltage must be at or below the set point, at Q_min at or
 above it, and a PV bus must have Q inside its limits (eq. 5 to 7 of [1]).
-dU/dQ must be positive. It is at every switched solution, also the
-abnormal ones; only the voltage test finds them. With every machine of
-sp_case118 frozen at its Q the smallest eigenvalue is negative (-0.0116),
-so `check` in `stability_softpv.csv` (characteristic off) fails there at
-all 53 machines; with it on dU/dQ is positive.
+dU/dQ is positive at every switched solution, also at the abnormal ones;
+only the voltage test finds them.
 
 ## Limits
 
