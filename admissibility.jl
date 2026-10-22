@@ -20,10 +20,12 @@
 
 using LinearAlgebra
 
-# a bus is at its set point when |U - U_set| <= TOL_U, at a limit when
-# |Q - limit| <= TOL_Q; the solver tolerance is 1e-6 pu
-const TOL_U = 1e-5      # pu
-const TOL_Q = 1e-4      # pu, 0.01 Mvar at 100 MVA
+# Tolerances, chosen here (the paper gives none). A bus is "on the set
+# point" when |U - U_set| <= TOL_U; this is also the margin on U in check
+# (a). A bus is "at a limit" when Q is within TOL_Q_MVAR of that limit; this
+# is also the margin on Q in check (b). The solver tolerance is 1e-6 pu.
+const TOL_U = 1e-6        # pu
+const TOL_Q_MVAR = 1e-3   # Mvar
 # perturbation of the reactive injection for dU/dQ
 const DQ = 1e-3         # pu, 0.1 Mvar at 100 MVA
 
@@ -99,6 +101,7 @@ function admissibility(net, case, strategy, guard, lock, types0, vset, converged
   report = buildACPFlowReport(net)
   rep = Dict(r.bus => r for r in report.nodes)
   qmin, qmax = getQLimits_pu(net)
+  tolq = TOL_Q_MVAR / base
 
   # Q of each regulated bus from the solved voltages, on the solver's
   # working net: closed links (bus couplers) contracted onto one
@@ -128,9 +131,9 @@ function admissibility(net, case, strategy, guard, lock, types0, vset, converged
     q = qgen[b] / base
     state[b] = if getNodeType(net.nodeVec[b]) == Sparlectra.Slack || abs(rep[b].vm_pu - vset[b]) <= TOL_U
       "vset"
-    elseif abs(q - qmax[b]) <= TOL_Q
+    elseif abs(q - qmax[b]) <= tolq
       "qmax"
-    elseif abs(q - qmin[b]) <= TOL_Q
+    elseif abs(q - qmin[b]) <= tolq
       "qmin"
     else
       "none"
@@ -183,7 +186,7 @@ function admissibility(net, case, strategy, guard, lock, types0, vset, converged
     # U >= U_set (eq. 6); a bus neither at U_set nor at a limit fails eq. 3
     a = s == "qmax" ? pf(u <= us + TOL_U) : s == "qmin" ? pf(u >= us - TOL_U) : s == "none" ? "fail" : "n/a"
     # (b) a bus held at its set point keeps Q inside its limits
-    b_ = s == "vset" ? pf(qmin[b] - TOL_Q <= q <= qmax[b] + TOL_Q) : "n/a"
+    b_ = s == "vset" ? pf(qmin[b] - tolq <= q <= qmax[b] + tolq) : "n/a"
     # (c) dU/dQ > 0 at a bus that is not held at its set point
     c = haskey(sens, b) ? pf(sens[b] > 0) : "n/a"
     # a run that did not converge leaves an iterate, not a result: its bus
@@ -199,5 +202,8 @@ function admissibility(net, case, strategy, guard, lock, types0, vset, converged
   return rows, qv_min_eig
 end
 
-# violating buses per check of one run
-violations(rows) = (viol_a = count(r -> r.check_a == "fail", rows), viol_b = count(r -> r.check_b == "fail", rows), viol_c = count(r -> r.check_c == "fail", rows))
+# violating buses per check of one run, and buses that fail any of them
+violations(rows) = (viol_a = count(r -> r.check_a == "fail", rows), viol_b = count(r -> r.check_b == "fail", rows), viol_c = count(r -> r.check_c == "fail", rows),
+  inconsistent_buses = count(r -> "fail" in (r.check_a, r.check_b, r.check_c), rows))
+# placeholder of a run that did not converge
+const NO_VIOLATIONS = (viol_a = "-", viol_b = "-", viol_c = "-", inconsistent_buses = "-")

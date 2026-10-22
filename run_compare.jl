@@ -26,10 +26,7 @@ const NARROW_GENERATORS = [159, 160]
 # the band of both machines, 4.0 .. 5.5 Mvar (0.015 pu at 100 MVA, below
 # the 0.02 pu of the guard). Base Q in sp_case60 (active set): 7.5 Mvar at
 # generator 159 and 4.9 Mvar at 160, so the upper limit binds at 159 and 160
-# stays inside its band. Chosen after three trial bands
-# (results/sp_case60_narrow.txt): a band 1 Mvar below the base Q of each
-# machine and a band around zero (-1.0 .. 0.5 Mvar) diverged with every
-# strategy, with and without the guard, and show nothing about the guard.
+# stays inside its band.
 const NARROW_QMIN_MVAR = 4.0
 const NARROW_QMAX_MVAR = 5.5
 
@@ -80,7 +77,7 @@ function run_case(case::AbstractString, strategy::AbstractString; guard::Bool = 
     cycle = get(d, :oscillating_buses, 0) > 0 || res.reason === :max_switching_exceeded, oscillating_buses = get(d, :oscillating_buses, 0),
     guarded = get(d, :guarded_narrow_q_pv_buses, 0), pv_to_pq = pv_to_pq, slack_p_MW = slack_p, slack_q_MVar = slack_q, loss_MW = ploss, reason = res.reason)
   adm, qv_min_eig = admissibility(net, case, strategy, guard, "-", types0, vset, res.final_converged)
-  v = res.final_converged ? violations(adm) : (viol_a = "-", viol_b = "-", viol_c = "-")
+  v = res.final_converged ? violations(adm) : NO_VIOLATIONS
   row = merge(row, v, (qv_min_eig = qv_min_eig,))
   sol = [(bus = i, name = n.comp.cName, vn_kV = n.comp.cVN, type = string(types1[i]), vm_pu = something(n._vm_pu, NaN), va_deg = something(n._va_deg, NaN)) for (i, n) in enumerate(net.nodeVec)]
   return row, sol, adm
@@ -164,7 +161,7 @@ function main()
     res = redirect_stdout(() -> run_sparlectra(net = net, config = cfg), devnull)
     a, _ = admissibility(net, "sp_case60_narrow", "active_set", false, join(buses, " "), types0, vset, res.final_converged)
     append!(adm, a)
-    v = res.final_converged ? violations(a) : (viol_a = "-", viol_b = "-", viol_c = "-")
+    v = res.final_converged ? violations(a) : NO_VIOLATIONS
     push!(lock_rows, merge((locked_buses = join(buses, " "), names = join([net.nodeVec[b].comp.cName for b in buses], " "), converged = res.final_converged, iterations = res.iterations), v))
   end
   rm(joinpath(RESULTS, "configs", "active_set_guard_off.yaml"))

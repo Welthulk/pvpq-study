@@ -128,7 +128,7 @@ deletes `results/` and writes it new: `runs.csv`, `pairs.csv`,
 `sp_case60_narrow.txt`, the final solutions in `results/solutions/`, the
 configuration of every run in `results/configs/`, and the two figures. It
 also rewrites the networks in `cases/`. Two runs one after the other took
-1 min 8 s and 1 min 12 s wall time (`time julia reproduce.jl`, same
+56.5 s and 56.8 s wall time (`time julia reproduce.jl`, same
 machine and Julia version as above).
 
 Check: after a run, look at
@@ -218,9 +218,6 @@ iterations), generator 160 alone and both together do not (80 iterations).
 `narrow_lock.csv` lists Sparlectra bus indices (11, 25), while
 `sp_case60_narrow.txt` names the SCF node numbers of the generators (6,
 60); both are the same buses, Birkkamp_110 and Westtal_110.
-Sparlectra 0.50.0 locked both machines as PQ at the middle of their band
-from the start, and the active set with the guard did not converge (80
-iterations).
 
 Figures: `results/fig5a_voltage_profile.png` (main figure, case14_zeng,
 selected by the rule in `compare.jl`), `results/fig5b_narrow_guard.png`.
@@ -231,7 +228,8 @@ A converged power flow is not yet an operating point. Every final solution
 is checked at each bus with a voltage-regulating or reference unit
 (`admissibility.jl`): one row per bus and run in `results/consistency.csv`,
 the number of violating buses per check in `runs.csv` and
-`narrow_lock.csv` (`viol_a`, `viol_b`, `viol_c`).
+`narrow_lock.csv` (`viol_a`, `viol_b`, `viol_c`), and the number of buses
+that fail any of the three checks (`inconsistent_buses`).
 
 The criterion follows Zhao, Chiang, Li and Ju [1]. A generator either holds
 its voltage set point with its reactive power inside the limits, or it runs
@@ -248,12 +246,12 @@ that dU/dQ at a bus must be positive.
 How it is tested:
 
 - State of each bus from the solved values: `vset` when
-  |U - U_set| <= 1e-5 pu (the slack always), else `qmax` or `qmin` when Q
-  is within 1e-4 pu (0.01 Mvar) of that limit, else `none`.
-- (a) At `qmax` U <= U_set + 1e-5 pu (eq. 7), at `qmin`
-  U >= U_set - 1e-5 pu (eq. 6). A bus
+  |U - U_set| <= 1e-6 pu (the slack always), else `qmax` or `qmin` when Q
+  is within 1e-3 Mvar of that limit, else `none`.
+- (a) At `qmax` U <= U_set + 1e-6 pu (eq. 7), at `qmin`
+  U >= U_set - 1e-6 pu (eq. 6). A bus
   in state `none` (neither at its set point nor at a limit) fails as well.
-- (b) At `vset`: Q_min - 1e-4 pu <= Q <= Q_max + 1e-4 pu.
+- (b) At `vset`: Q_min - 1e-3 Mvar <= Q <= Q_max + 1e-3 Mvar.
 - (c) At `qmax` and `qmin`: the reactive injection of the bus is raised by
   1e-3 pu (0.1 Mvar), every bus type is kept, and the power flow is solved
   again from the solved state (Newton, 1e-12 pu). The check requires
@@ -273,19 +271,35 @@ net the solver uses (closed bus couplers contracted), plus the load of the
 bus. The script stops if this Ybus does not reproduce P at every bus except
 the slack and Q at every bus without a regulating unit within 1e-3 MW or
 Mvar. The Q of the Sparlectra report is kept in `q_report_MVar`. The
-tolerances are chosen here; the paper gives none.
+tolerances are constants in `admissibility.jl`, chosen here; the paper gives
+none.
 
-Counts (buses at a limit, then violating buses per check):
+Stability constraints (6), (7) of Zhao et al. 2008 (buses at a limit,
+violating buses per check, buses that fail any check):
 
-| Network | Strategy | Guard | Regulated buses | At a limit | (a) | (b) | (c) | qv_min_eig |
-|---|---|---|---|---|---|---|---|---|
-| case14_zeng | active_set | on | 5 | 3 | 0 | 0 | 0 | 0.856 |
-| case14_zeng | classic_simultaneous | on | 5 | 4 | 3 | 0 | 0 | 0.103 |
-| case14_zeng | classic_one_at_a_time | on | 5 | 2 | 0 | 1 | 0 | 2.610 |
-| sp_case14 | all three | on | 3 | 0 | 0 | 0 | 0 | 0.399 |
-| sp_case118 | all three | on | 54 | 10 | 0 | 0 | 0 | 7.858 |
-| sp_case60_narrow | all three | on / off | 4 | 1 | 0 | 0 | 0 | 0.070 |
-| sp_case60_narrow, lock list 11 | active_set | off | 4 | 2 | 1 | 0 | 0 | - |
+| Network | Strategy | Guard | Lock list | Regulated buses | At a limit | (a) | (b) | (c) | Inconsistent buses | qv_min_eig |
+|---|---|---|---|---|---|---|---|---|---|---|
+| case14_zeng | active_set | on | - | 5 | 3 | 0 | 0 | 0 | 0 | 0.856 |
+| case14_zeng | classic_simultaneous | on | - | 5 | 4 | 3 | 0 | 0 | 3 | 0.103 |
+| case14_zeng | classic_one_at_a_time | on | - | 5 | 2 | 0 | 1 | 0 | 1 | 2.610 |
+| sp_case14 | active_set | on | - | 3 | 0 | 0 | 0 | 0 | 0 | 0.399 |
+| sp_case14 | classic_simultaneous | on | - | 3 | 0 | 0 | 0 | 0 | 0 | 0.399 |
+| sp_case14 | classic_one_at_a_time | on | - | 3 | 0 | 0 | 0 | 0 | 0 | 0.399 |
+| sp_case118 | active_set | on | - | 54 | 10 | 0 | 0 | 0 | 0 | 7.858 |
+| sp_case118 | classic_simultaneous | on | - | 54 | 10 | 0 | 0 | 0 | 0 | 7.858 |
+| sp_case118 | classic_one_at_a_time | on | - | 54 | 10 | 0 | 0 | 0 | 0 | 7.858 |
+| sp_case60_narrow | active_set | on | - | 4 | 1 | 0 | 0 | 0 | 0 | 0.070 |
+| sp_case60_narrow | active_set | off | - | 4 | 1 | 0 | 0 | 0 | 0 | 0.070 |
+| sp_case60_narrow | classic_simultaneous | on | - | 4 | 1 | 0 | 0 | 0 | 0 | 0.070 |
+| sp_case60_narrow | classic_simultaneous | off | - | 4 | 1 | 0 | 0 | 0 | 0 | 0.070 |
+| sp_case60_narrow | classic_one_at_a_time | on | - | 4 | 1 | 0 | 0 | 0 | 0 | 0.070 |
+| sp_case60_narrow | classic_one_at_a_time | off | - | 4 | 1 | 0 | 0 | 0 | 0 | 0.070 |
+| sp_case60_narrow | active_set | off | 11 | 4 | 2 | 1 | 0 | 0 | 1 | - |
+
+Q is computed from the solved voltages on the contracted network (closed
+bus couplers merged, as the solver does); at the coupler bus Birkkamp_110 of
+sp_case60_narrow the Sparlectra report of the classic strategies differs
+from it (report 7.389 Mvar, voltages 5.500 Mvar).
 
 The lock list runs with bus 25 and with 11 and 25 did not converge and are
 not checked; their rows in `consistency.csv` carry no type, Q or U.
@@ -324,9 +338,7 @@ dU/dQ in pu per pu at 100 MVA.
   operating point.
 - In sp_case60_narrow Sparlectra keeps the bus type of Birkkamp_110 at PV in
   the solved net, although the bus runs at a limit with the voltage off its
-  set point. The classic strategies report its Q as 7.389 Mvar, outside the
-  band; from the solved voltages it is 5.500 Mvar. The check uses the value
-  from the voltages. "Buses PV to PQ" reads the Sparlectra bus types and is
+  set point. "Buses PV to PQ" reads the Sparlectra bus types and is
   therefore 0 for this case.
 
 ## Limits
@@ -336,11 +348,9 @@ dU/dQ in pu per pu at 100 MVA.
   General registry yet). One start (classic), one tolerance.
 - "Buses PV to PQ" counts buses that start as PV and end as PQ; switching
   rounds and events are the counters of the solver status
-  (`qlimit_active_set_changes`, `pv_pq_switching_events`); no run reported
-  an oscillating bus.
-- The narrow band of `sp_case60_narrow` is set by hand; two other bands
-  (1 Mvar below the base reactive power of each machine, and -1.0 to
-  0.5 Mvar) did not converge with any strategy.
+  (`qlimit_active_set_changes`, `pv_pq_switching_events`); none of the
+  runs in `runs.csv` reported an oscillating bus.
+- The narrow band of `sp_case60_narrow` is set by hand.
 - The physical check covers eq. 3, 5, 6 and 7 of [1] and the sign of
   dU/dQ at the regulated buses at a limit. At a bus held at its set point
   dU/dQ is zero by definition and not tested; load buses enter only
