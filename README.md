@@ -1,8 +1,8 @@
 # PV/PQ switching strategies in Sparlectra: same network, different solutions
 
 A small reproducible comparison of the three Q-limit strategies of
-[Sparlectra.jl](https://github.com/Welthulk/Sparlectra.jl) 0.50.0 (General
-registry): `active_set`, `classic_simultaneous` and `classic_one_at_a_time`.
+[Sparlectra.jl](https://github.com/Welthulk/Sparlectra.jl) 0.60.0: `active_set`,
+`classic_simultaneous` and `classic_one_at_a_time`.
 That the switching strategy can decide the final solution is known
 (Zeng and Chiang, IJEPES 2023; Sundaresh and Rao, Sadhana 2015). This
 repository is the open, recomputable version in Julia, plus a case with
@@ -69,24 +69,27 @@ Runs B, sp_case60_narrow:
 
 | Strategy | Guard | Converged | Iterations |
 |---|---|---|---|
-| active_set | on | no | 80 (limit) |
-| active_set | off | yes | 5 |
+| active_set | on / off | yes | 5 / 5 |
 | classic_simultaneous | on / off | yes | 7 / 7 |
 | classic_one_at_a_time | on / off | yes | 7 / 7 |
 
-The guard acts in the active-set strategy only (the classic runs report no
-guarded bus). It runs both machines as PQ at the middle of their band
-(4.75 Mvar). Without the guard, generator 160 stays PV inside its band. Run
-as PQ through `power_flow.qlimits.lock_pv_to_pq_buses` instead of the guard,
-generator 159 alone converges (5 iterations), generator 160 alone and both
-together do not (80 iterations).
+The guard (`narrow_range_mode: lock_pq`) keeps a narrow-band machine PV while
+its Q lies inside the band and locks it at the limit it reaches; with and
+without the guard the active set ends on the same solution. Generator 160
+stays PV inside its band. Run as PQ through
+`power_flow.qlimits.lock_pv_to_pq_buses`, generator 159 alone converges (5
+iterations), generator 160 alone and both together do not (80 iterations).
+Sparlectra 0.50.0 locked both machines as PQ at the middle of their band
+from the start, and the active set with the guard did not converge (80
+iterations).
 
 Figures: `results/fig5a_voltage_profile.png` (main figure, case14_zeng,
 selected by the rule in `compare.jl`), `results/fig5b_narrow_guard.png`.
 
 ## Limits
 
-- One version of Sparlectra (0.50.0), one start (classic), one tolerance.
+- One version of Sparlectra (0.60.0, run from the development checkout until
+  it is in the General registry), one start (classic), one tolerance.
 - "Buses PV to PQ" counts buses that start as PV and end as PQ; switching
   rounds and events are the counters of the solver status
   (`qlimit_active_set_changes`, `pv_pq_switching_events`); no run reported

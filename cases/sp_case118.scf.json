@@ -9351,10 +9351,10 @@
         "zone": 3
       }
     },
-    "format_version": "1.2",
+    "format_version": "1.3",
     "meta": {
       "case_name": "sp_case118",
-      "created_by": "Sparlectra 0.50.0",
+      "created_by": "Sparlectra 0.60.0",
       "f_nom": 50.0,
       "intended_calculations": ["power_flow"],
       "s_base": 1.0e8

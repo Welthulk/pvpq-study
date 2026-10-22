@@ -3,3 +3,6 @@ PNGFiles = "f57f5aa1-a3ce-4bc8-8ab9-96f992907883"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 Sparlectra = "31ce9bba-fd9d-44a1-b005-f5f509afda38"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+
+[sources]
+Sparlectra = {path = "/home/scud/.julia/dev/Sparlectra"}

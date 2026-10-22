@@ -51,7 +51,10 @@ function fig5b()
     push!(rounds, parse(Float64, r["switching_rounds"]) + parse(Float64, r["pv_pq_events"]))
   end
   x = collect(1:length(labels))
-  p = bar(x .- 0.2, iters, bar_width = 0.4, label = "Newton iterations", size = (1200, 628), dpi = 100, xticks = (x, labels), ylabel = "count", title = "sp_case60_narrow: two machines with a Q band of 0.015 pu", framestyle = :box, legend = :topright, left_margin = 12Plots.mm, bottom_margin = 16Plots.mm)
+  # headroom above the highest bar for the legend; without it the y axis
+  # ends at the tallest bar and the legend covers it
+  ymax = 1.3 * maximum(vcat(iters, rounds))
+  p = bar(x .- 0.2, iters, bar_width = 0.4, label = "Newton iterations", size = (1200, 628), dpi = 100, xticks = (x, labels), ylabel = "count", ylims = (0, ymax), title = "sp_case60_narrow: two machines with a Q band of 0.015 pu", framestyle = :box, legend = :topright, left_margin = 12Plots.mm, bottom_margin = 16Plots.mm)
   bar!(p, x .+ 0.2, rounds, bar_width = 0.4, label = "active-set changes + PV/PQ switching events")
   save_1200x627(p, joinpath(RESULTS, "fig5b_narrow_guard.png"))
 end

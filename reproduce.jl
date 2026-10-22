@@ -3,7 +3,8 @@
 # usage: julia reproduce.jl
 #
 # Installs the pinned environment of Project.toml and Manifest.toml
-# (Sparlectra 0.50.0 from the General registry), then runs the three steps
+# (Sparlectra 0.60.0; until it is registered the manifest points at the
+# development checkout), then runs the three steps
 # in their own processes: measurement, comparison, figures.
 
 const ROOT = @__DIR__
