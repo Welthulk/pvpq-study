@@ -4,10 +4,12 @@
 #      decision rule selects it
 #   5b iterations and switching rounds with and without the guard for
 #      sp_case60_narrow (results/fig5b_narrow_guard.png)
-#   6  case14_zeng with Q(U): distance to the switched solutions
+#   6  case14_zeng with Q(U) droop: distance to the switched solutions
 #      (results/fig6_zeng_softpv.png)
-#   7  sp_case60_narrow with Q(U): characteristics and solved points
+#   7  sp_case60_narrow with Q(U) droop: characteristics and solved points
 #      (results/fig7_narrow_softpv.png)
+#   8  sp_case60_narrow, Q(U) droop 1 % and Soft-PV after Kataoka side by
+#      side (results/fig8_kataoka.png)
 #
 # usage: julia --project=. figures.jl   (after compare.jl and compare_softpv.jl)
 
@@ -68,14 +70,14 @@ function fig5b()
   save_1200x627(p, joinpath(RESULTS, "fig5b_narrow_guard.png"))
 end
 
-# 6: case14_zeng with Q(U), distance of the Soft-PV solution (active set,
+# 6: case14_zeng with Q(U) droop, distance of the Q(U) solution (active set,
 # start uset) to each switched solution over the half width dU of the
 # characteristic (results/pairs_softpv.csv)
 function fig6()
   pairs = read_csv(joinpath(RESULTS, "pairs_softpv.csv"))
-  p = plot(size = (1200, 628), dpi = 100, xscale = :log10, xticks = ([0.5, 1, 2, 5], ["0.5", "1", "2", "5"]), xlabel = "half width dU of the Q(U) characteristic (% of U_set)", ylabel = "max |dU| to the switched solution (pu)",
-    title = "case14_zeng: Q(U) instead of PV/PQ switching", legend = :topleft, framestyle = :box, left_margin = 12Plots.mm, bottom_margin = 10Plots.mm, ylims = (0, :auto))
-  for (variant, ls, lab) in (("Z-all", :solid, "Q(U) at all four PV machines"), ("Z-one", :dash, "Q(U) at buses 2 and 6"))
+  p = plot(size = (1200, 628), dpi = 100, xscale = :log10, xticks = ([0.5, 1, 2, 5], ["0.5", "1", "2", "5"]), xlabel = "half width dU of the Q(U) droop (% of U_set)", ylabel = "max |dU| to the switched solution (pu)",
+    title = "case14_zeng: Q(U) droop instead of PV/PQ switching", legend = :topleft, framestyle = :box, left_margin = 12Plots.mm, bottom_margin = 10Plots.mm, ylims = (0, :auto))
+  for (variant, ls, lab) in (("Z-all", :solid, "droop at all four PV machines"), ("Z-one", :dash, "droop at buses 2 and 6"))
     for (s, m) in zip(STRATEGIES, (:circle, :rect, :utriangle))
       sel = [x for x in pairs if x["variant"] == variant && x["control"] == "qu" && x["start"] == "uset" && x["strategy"] == "active_set" && x["damped"] == "false" && x["ref_strategy"] == s]
       isempty(sel) && continue
@@ -99,7 +101,7 @@ function fig7()
     for r in rs
       us, du, qmin, qmax = parse(Float64, r["uset_pu"]), parse(Float64, r["du_pct"]), parse(Float64, r["qmin_MVar"]), parse(Float64, r["qmax_MVar"])
       d = us * du / 100
-      plot!(p, [0.95, us - d, us + d, 1.06], [qmax, qmax, qmin, qmin], label = "Q(U), dU $(r["du_pct"]) %")
+      plot!(p, [0.95, us - d, us + d, 1.06], [qmax, qmax, qmin, qmin], label = "droop, dU $(r["du_pct"]) %")
       scatter!(p, [parse(Float64, r["u_pu"])], [parse(Float64, r["q_MVar"])], label = "", color = :black, markersize = 4)
     end
     for (s, m) in zip(STRATEGIES, (:star5, :diamond, :xcross))
@@ -109,8 +111,48 @@ function fig7()
     vline!(p, [parse(Float64, rs[1]["uset_pu"])], label = "U_set", color = :gray, linestyle = :dot)
     push!(panels, p)
   end
-  p = plot(panels..., layout = (1, 2), size = (1200, 628), dpi = 100, plot_title = "sp_case60_narrow: band 4.0 to 5.5 Mvar as Q(U) characteristic, dots: solved points", left_margin = 10Plots.mm, bottom_margin = 10Plots.mm)
+  p = plot(panels..., layout = (1, 2), size = (1200, 628), dpi = 100, plot_title = "sp_case60_narrow: band 4.0 to 5.5 Mvar as Q(U) droop, dots: solved points", left_margin = 10Plots.mm, bottom_margin = 10Plots.mm)
   save_1200x627(p, joinpath(RESULTS, "fig7_narrow_softpv.png"))
+end
+
+# characteristic of a row of stability_softpv.csv as (U, Q) points, with
+# flat ends from `ulo` to `uhi` (softpv.jl, characteristic_points)
+function char_line(r, ulo, uhi)
+  us, qmin, qmax = parse(Float64, r["uset_pu"]), parse(Float64, r["qmin_MVar"]), parse(Float64, r["qmax_MVar"])
+  if r["shape"] == "droop"
+    d = us * parse(Float64, r["du_pct"]) / 100
+    return [ulo, us - d, us + d, uhi], [qmax, qmax, qmin, qmin]
+  end
+  din, dc = us * parse(Float64, r["du_in_pct"]) / 100, us * parse(Float64, r["du_c_pct"]) / 100
+  delta = (qmax - qmin) * parse(Float64, r["delta_pct"]) / 100
+  return [ulo, us - din - dc, us - din, us + din, us + din + dc, uhi], [qmax, qmax, qmax - delta, qmin + delta, qmin, qmin]
+end
+
+# 8: sp_case60_narrow, Q(U) droop 1 % and Soft-PV after Kataoka (dU_in
+# 0.1 %, dU_c 2 %) side by side, both machines with the solved points and
+# the switched solutions (results/stability_softpv.csv, results/consistency.csv)
+function fig8()
+  stab = [x for x in read_csv(joinpath(RESULTS, "stability_softpv.csv")) if x["strategy"] == "active_set" && x["damped"] == "false" && x["start"] == "uset"]
+  cons = [x for x in read_csv(joinpath(RESULTS, "consistency.csv")) if x["case"] == "sp_case60_narrow" && x["guard"] == "true" && x["lock"] == "-"]
+  panels = []
+  ulo, uhi = 0.97, 1.04
+  for (title, sel) in (("Q(U) droop, dU 1 %", x -> x["variant"] == "N-band" && x["du_pct"] == "1"),
+    ("Soft-PV (Kataoka), dU_in 0.1 %, dU_c 2 %", x -> x["variant"] == "K-nband" && x["du_in_pct"] == "0.1" && x["du_c_pct"] == "2"))
+    p = plot(xlabel = "U (pu)", ylabel = "Q (Mvar)", title = title, legend = :bottomleft, framestyle = :box, xlims = (ulo, uhi), ylims = (3.8, 6.4))
+    for (name, col) in (("Birkkamp_110", :steelblue), ("Westtal_110", :darkorange))
+      r = only(x for x in stab if sel(x) && x["name"] == name)
+      us, uq = char_line(r, ulo, uhi)
+      plot!(p, us, uq, label = "$(name) characteristic", color = col, linewidth = 2)
+      scatter!(p, [parse(Float64, r["u_pu"])], [parse(Float64, r["q_MVar"])], label = "$(name) solved", color = col, markersize = 7)
+      for (s, m) in zip(STRATEGIES, (:star5, :diamond, :xcross))
+        c = only(x for x in cons if x["name"] == name && x["strategy"] == s)
+        scatter!(p, [parse(Float64, c["u_pu"])], [parse(Float64, c["q_MVar"])], label = name == "Birkkamp_110" ? "switched, $(s)" : "", marker = m, markersize = 8, color = col, markerstrokecolor = :black)
+      end
+    end
+    push!(panels, p)
+  end
+  p = plot(panels..., layout = (1, 2), size = (1200, 628), dpi = 100, plot_title = "sp_case60_narrow: band 4.0 to 5.5 Mvar, droop against Soft-PV", left_margin = 10Plots.mm, bottom_margin = 10Plots.mm)
+  save_1200x627(p, joinpath(RESULTS, "fig8_kataoka.png"))
 end
 
 function main()
@@ -120,6 +162,7 @@ function main()
   fig5b()
   isfile(joinpath(RESULTS, "pairs_softpv.csv")) && fig6()
   isfile(joinpath(RESULTS, "stability_softpv.csv")) && fig7()
+  isfile(joinpath(RESULTS, "stability_softpv.csv")) && fig8()
   println("figures written to results/")
 end
 

@@ -10,7 +10,7 @@ Every file, setting and run of the study. The short version is the
 | `run_compare.jl` | one network, three strategies, same start values and tolerance; one CSV line per run (`results/runs.csv`), the final solution of every run (`results/solutions/`), the band of the narrow band case (`results/sp_case60_narrow.txt`), the lock list check (`results/narrow_lock.csv`) and the physical check of every solution (`results/consistency.csv`) |
 | `admissibility.jl` | the physical check, called by `run_compare.jl` for every solved run |
 | `compare.jl` | pairwise comparison of the final solutions (`results/pairs.csv`) and the decision rule for the main figure (`results/decision.txt`) |
-| `softpv.jl` | Q(U) droop and P(U) instead of the voltage regulator of chosen generators (`results/runs_softpv.csv`, `results/stability_softpv.csv`, `results/frozen_softpv.txt`, `results/solutions/softpv/`, `results/softpv_bands.txt`) |
+| `softpv.jl` | Q(U) droop, P(U) and Soft-PV after Kataoka instead of the voltage regulator of chosen generators (`results/runs_softpv.csv`, `results/stability_softpv.csv`, `results/frozen_softpv.txt`, `results/solutions/softpv/`, `results/softpv_bands.txt`) |
 | `compare_softpv.jl` | Q(U) solutions against the switched ones (`results/pairs_softpv.csv`, `results/h2_softpv.txt`) |
 | `figures.jl` | figures as PNG, 1200 x 627 px, drawn offscreen (`GKSwstype=100`) |
 | `reproduce.jl` | everything above from a fresh checkout |
@@ -20,7 +20,7 @@ Every file, setting and run of the study. The short version is the
 Figures: `results/fig5a_voltage_profile.png` (main figure, case14_zeng,
 selected by the rule in `compare.jl`, `decision.txt`),
 `results/fig5b_narrow_guard.png`, `results/fig6_zeng_softpv.png`,
-`results/fig7_narrow_softpv.png`.
+`results/fig7_narrow_softpv.png`, `results/fig8_kataoka.png`.
 
 ## Networks
 
@@ -291,11 +291,13 @@ and the Ybus. The generator Q stored at the node is not used; at the pinned
 commit it keeps the nameplate value for Q(U) units.
 
 Files: `runs_softpv.csv` (columns of `runs.csv`, plus variant, file, band,
-control, start, dU, P(U) on, damped, and per Q(U) bus U, Q, P, U - U_set
-and the region of the characteristic, `slope`, `qmax` or `qmin`, separated
-by `;`), `pairs_softpv.csv` (every converged Q(U) solution against every
+control, start, `shape` (`droop`, `kataoka`, `-` for switched runs), dU,
+the Kataoka parameters, P(U) on, damped, and per Q(U) bus U, Q, P,
+U - U_set and the position on the characteristic, separated by `;`:
+`clamp_max`, `slope`, `clamp_min` for the droop), `pairs_softpv.csv` (every converged Q(U) solution against every
 converged switched solution of the same network), `h2_softpv.txt`,
-`stability_softpv.csv`, `frozen_softpv.txt`, the solutions in
+`stability_softpv.csv` (per bus, with position and |U - U_set|),
+`frozen_softpv.txt`, the solutions in
 `results/solutions/softpv/`.
 
 Perturbation check (`stability_softpv.csv`), as check (c): bus types held,
@@ -400,6 +402,86 @@ undamped failure is at dU 0.5 or 1 % and every run at 2 and 5 % converges:
 there a steep droop costs convergence, depending on start and strategy. In
 Z-all there is no such pattern.
 
+## Soft-PV after Kataoka
+
+Kataoka [4] keeps the generator PV inside its band and rounds the corners
+at the limits. Here this is a `QUController` with four points, linear,
+clamped outside:
+
+    (U_set - dU_in - dU_c, Q_max), (U_set - dU_in, Q_max - delta),
+    (U_set + dU_in, Q_min + delta), (U_set + dU_in + dU_c, Q_min)
+
+delta is 10 % of the band. The middle segment covers 80 % of the band on
+2 dU_in, so the bus holds U_set within dU_in. Each corner covers the last
+10 % of the band on dU_c. Six characteristics: dU_in 0.1 and 0.05 %, dU_c
+1, 2 and 5 %. Start `uset`, settings and damped repeat as for the droop,
+files `cases/softpv/k_*.scf.json`, column `shape` = `kataoka`. Position on
+the characteristic: `clamp_max`, `corner_max`, `mid`, `corner_min`,
+`clamp_min`.
+
+| Variant | Network | Soft-PV at | Runs |
+|---|---|---|---|
+| K-zall | case14_zeng | the four PV generators | 6 characteristics x 3 strategies |
+| K-nband | sp_case60_narrow, coupler contracted | 159 and 160, band 4.0 to 5.5 Mvar | 6 characteristics, active set |
+| K-118 | sp_case118 | all 53 PV generators | dU_in 0.1 %, dU_c 2 %, 3 strategies |
+
+Max |dU| in pu to the switched active set solution, active set, start
+`uset`, iterations in brackets (`h2_softpv.txt`):
+
+| dU_in % | dU_c % | K-zall | K-nband |
+|---|---|---|---|
+| 0.1 | 1 | 0.0076 (5) | below 1e-6 (7) |
+| 0.1 | 2 | 0.0122 (5) | 0.0008 (6) |
+| 0.1 | 5 | 0.4127 (13) | 0.0046 (6) |
+| 0.05 | 1 | 0.0073 (6) | below 1e-6 (6) |
+| 0.05 | 2 | 0.0119 (5) | 0.0008 (6) |
+| 0.05 | 5 | 0.4127 (13) | 0.0045 (6) |
+| droop 0.5 % | | 0.0050 (5) | below 1e-6 (6) |
+
+K-zall: for each characteristic the three strategies give the same
+solution (max |dU| 0, 0 PV/PQ events); the nearest switched solution is
+always the active set. With dU_c 1 and 2 % no machine ends in the middle
+segment: bus 1 sits in the lower corner, buses 2, 3 and 6 in the upper
+corner or at Q_max. Bus 2 needs 48.84 of 50 Mvar in the switched solution,
+which is in the top 10 % of its band; the corner gives it 45.3 to 46.5 Mvar
+at 0.7 to 1.1 % below U_set. For bus 2 a corner (9 Mvar over 1 or 2 %) is
+flatter than the droop 0.5 % (90 Mvar over 1 %), so the droop stays
+nearer. dU/dQ is positive at every bus with and without the
+characteristic.
+
+With dU_c 5 % all four machines end at Q_max at 0.59 to 0.72 pu, the
+low-voltage solution of the droop with start `flat` (losses 51.8 MW):
+dU/dQ negative at buses 1, 2 and 3, smallest eigenvalue -0.62 with and
+without the characteristic, although the run starts at U_set. Whether this
+characteristic has a high-voltage solution was not checked.
+
+K-nband: with dU_c 1 % both machines are at 5.5 Mvar, the active set
+solution. With 2 % Birkkamp_110, with 5 % both machines are in the upper
+corner, 0.0008 and 0.0046 pu off. No run reaches the classic solution with
+Westtal_110 at 1.02 pu and 6.14 Mvar, which is outside the characteristic
+(`results/fig8_kataoka.png`). Smallest eigenvalue 0.0067 to 0.0079, as at
+the switched active set solution (0.007); dU/dQ at least 0.64.
+
+K-118: no strategy converges undamped (80 iterations). Damped, all three
+reach one solution in 6 iterations, 0.0019 pu from the switched active set
+solution; the droop 1 % reaches 0.0054 pu in 49 damped iterations. 46 of
+the 53 machines are in the middle segment with |U - U_set| at most
+0.00096 pu (dU_in 0.001 pu), 5 in the upper and 2 in the lower corner.
+With the characteristic off dU/dQ is negative at all 53 buses (smallest
+eigenvalue -0.011), with it on positive at all 53 (8.50), the same reading
+as for the droop.
+
+Iterations: Soft-PV against droop 0.5 % with the active set, K-zall 5 to 6
+against 5 (13 on the low-voltage solution), K-nband 6 to 7 against 6. The
+steep middle segment costs no iterations in these two networks. sp_case118
+has no droop 0.5 % run; there both shapes fail undamped.
+
+H5 (the Soft-PV solution is nearer to the active set than every droop, and
+|U - U_set| < dU_in in the middle segment) holds in K-118 only. In K-zall
+the droop 0.5 % is nearer, in K-nband the droop 0.5 and 1 % and Soft-PV
+with dU_c 1 % all give the active set solution. The middle segment
+condition holds at all 46 buses where it applies.
+
 ## Limits
 
 - One version of Sparlectra: 0.60.0 from the public GitHub repository at
@@ -409,7 +491,9 @@ Z-all there is no such pattern.
 - Tap changers, phase shifters and the SVC stay at the positions of the
   case files; the interaction of the Q-limit strategies with an outer
   control loop is not part of this study.
-- Q(U) droop: one shape (linear, two points), not the smooth curve of [4].
+- Q(U) droop: linear, two points. Soft-PV: linear, four points, not the
+hyperbolic or sigmoid curve of [4]. K-118 only with dU_in 0.1 % and
+dU_c 2 %.
   The sp_case60 variants run on the file with the coupler contracted.
   `dudq_qu` and `qv_min_eig_qu` leave out P(U). sp_case118 only at dU 1 %.
   Start values other than `uset` and `flat` were not run.

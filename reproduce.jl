@@ -4,11 +4,10 @@
 #
 # Installs the pinned environment of Project.toml and Manifest.toml, then
 # runs the steps in their own processes: measurement with the physical check
-# of every solution, comparison, the Soft-PV runs with their comparison,
-# figures. Sparlectra comes
-# from the public GitHub repository at commit a3cd5bc9 ([sources] in
-# Project.toml), the development state of the upcoming 0.60; no registry
-# entry is needed.
+# of every solution, comparison, the Q(U) runs (droop and Soft-PV after
+# Kataoka) with their comparison, figures. Sparlectra 0.60.0 comes from the
+# public GitHub repository at commit a3cd5bc9 ([sources] in Project.toml);
+# no registry entry is needed.
 
 const ROOT = @__DIR__
 

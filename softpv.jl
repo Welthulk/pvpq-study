@@ -1,17 +1,24 @@
-# softpv.jl: Soft-PV. The voltage regulator of chosen generators is switched
-# off and replaced by a Q(U) characteristic (QUController), optionally with a
-# P(U) characteristic (PUController). The bus is PQ for the solver, its Q
-# follows |U|; there is no PV/PQ switching at that bus.
+# softpv.jl: the voltage regulator of chosen generators is switched off and
+# replaced by a Q(U) characteristic (QUController), optionally with a P(U)
+# characteristic (PUController). The bus is PQ for the solver, its Q follows
+# |U|; there is no PV/PQ switching at that bus. Two shapes:
 #
-# Characteristic of each machine: linear from (U_set - dU, Q_max) to
+# Q(U) droop (shape "droop"): linear from (U_set - dU, Q_max) to
 # (U_set + dU, Q_min), clamped outside, so at U = U_set Q is in the middle of
 # the band. dU in percent of U_set. P(U): P_base up to U_set + dU, then linear
 # to 0.8 P_base at U_set + 2 dU, clamped above.
 #
+# Soft-PV after Kataoka [4] (shape "kataoka"): PV inside the band, soft
+# corners at the limits. Four points, linear, clamped outside:
+#   (U_set - dU_in - dU_c, Q_max), (U_set - dU_in, Q_max - delta),
+#   (U_set + dU_in, Q_min + delta), (U_set + dU_in + dU_c, Q_min)
+# The middle segment runs over 80 % of the band on 2 dU_in, each corner over
+# the last delta = 10 % of the band on dU_c. No P(U) with this shape.
+#
 # Every variant is written as SCF file to cases/softpv/ (SCF carries the
 # characteristics in extra.<machine>.qu_control / pu_control) and solved from
 # that file. Writes results/runs_softpv.csv, the final solutions to
-# results/solutions/softpv/ and the perturbation check dU/dQ at every Soft-PV
+# results/solutions/softpv/ and the perturbation check dU/dQ at every Q(U)
 # bus to results/stability_softpv.csv; results/frozen_softpv.txt holds the
 # switched active set solutions with every machine frozen at its solved Q.
 #
@@ -27,6 +34,11 @@ const SOFT_CASES = joinpath(CASES, "softpv")
 const SOFT_SOLUTIONS = joinpath(RESULTS, "solutions", "softpv")
 const DU_PCT = [0.5, 1.0, 2.0, 5.0]
 const DU_PU_PCT = [1.0, 2.0]
+# Soft-PV after Kataoka: half width of the middle segment and width of a
+# corner in percent of U_set, Q share of a corner in percent of the band
+const K_DU_IN_PCT = [0.1, 0.05]
+const K_DU_C_PCT = [1.0, 2.0, 5.0]
+const K_DELTA_PCT = 10.0
 const SBASE_MVA = 100.0
 # Z-one: the two buses of case14_zeng at which the strategies end on another
 # bus type or state (pairs.csv, consistency.csv)
@@ -68,19 +80,47 @@ function set_bands!(net, bands)
   return net
 end
 
+# the characteristic points (U in pu, Q in Mvar) of one machine; `k` holds
+# the parameters of the Kataoka shape (du_in_pct, du_c_pct, delta_pct)
+function characteristic_points(shape, us, qmin, qmax, du_pct, k)
+  if shape == "droop"
+    du = us * du_pct / 100
+    return [(us - du, qmax), (us + du, qmin)]
+  end
+  din = us * k.du_in_pct / 100
+  dc = us * k.du_c_pct / 100
+  delta = (qmax - qmin) * k.delta_pct / 100
+  return [(us - din - dc, qmax), (us - din, qmax - delta), (us + din, qmin + delta), (us + din + dc, qmin)]
+end
+
+# position of a solved U on the characteristic of one machine: droop
+# clamp_max, slope, clamp_min; Kataoka clamp_max, corner_max, mid,
+# corner_min, clamp_min
+function position(d, u)
+  pts = d.points
+  u <= pts[1][1] && return "clamp_max"
+  u >= pts[end][1] && return "clamp_min"
+  length(pts) == 2 && return "slope"
+  u < pts[2][1] && return "corner_max"
+  u <= pts[3][1] && return "mid"
+  return "corner_min"
+end
+
 # replace the voltage regulator of the generators at `buses` by Q(U) and,
-# with `pu`, P(U); returns per bus (U_set, dU, Q_min, Q_max, P_base)
-function make_softpv!(net, buses, du_pct, pu)
+# with `pu`, P(U); returns per bus (U_set, dU, Q_min, Q_max, P_base, points),
+# dU being the half width of the droop or of the Kataoka middle segment
+function make_softpv!(net, buses, du_pct, pu; shape = "droop", k = nothing)
   net.baseMVA == SBASE_MVA || error("baseMVA $(net.baseMVA), expected $(SBASE_MVA)")
   data = Dict{Int,NamedTuple}()
   for b in buses
     ps = regulating_gen(net, b)
     vn = net.nodeVec[b].comp.cVN
     us = ps.vm_pu
-    du = us * du_pct / 100
+    du = shape == "droop" ? us * du_pct / 100 : us * k.du_in_pct / 100
     qmin, qmax = ps.minQ, ps.maxQ
     (isfinite(qmin) && isfinite(qmax) && qmax > qmin) || error("bus $(b): band $(qmin) .. $(qmax) Mvar cannot carry a characteristic")
-    ch = make_characteristic([((us - du) * vn, qmax), ((us + du) * vn, qmin)]; voltage_unit = :kV, value_unit = :MVAr, vn_kV = vn, sbase_MVA = SBASE_MVA, interpolation = :linear)
+    pts = characteristic_points(shape, us, qmin, qmax, du_pct, k)
+    ch = make_characteristic([(u * vn, q) for (u, q) in pts]; voltage_unit = :kV, value_unit = :MVAr, vn_kV = vn, sbase_MVA = SBASE_MVA, interpolation = :linear)
     ps.quController = QUController(ch; qmin_MVAr = qmin, qmax_MVAr = qmax, sbase_MVA = SBASE_MVA)
     p0 = something(ps.pVal, 0.0)
     if pu
@@ -91,7 +131,7 @@ function make_softpv!(net, buses, du_pct, pu)
     # the characteristic
     ps.isRegulated = false
     ps.vm_pu = nothing
-    data[b] = (uset = us, du = du, qmin = qmin, qmax = qmax, p0 = p0)
+    data[b] = (uset = us, du = du, qmin = qmin, qmax = qmax, p0 = p0, points = pts)
   end
   refreshBusTypesFromProsumers!(net)
   Sparlectra._buildQLimits!(net)
@@ -102,7 +142,7 @@ end
 # coupler (runpf! stops with "not supported with active-link merge
 # handling"). sp_case60 has one, link 135 between Neubach_110 (node 22) and
 # Neubach_110b (node 23); the only other element of node 23 is line 89. The
-# Soft-PV variants of sp_case60 therefore carry the contraction the solver
+# Q(U) variants of sp_case60 therefore carry the contraction the solver
 # does itself for the switched runs: line 89 starts at node 22, the coupler is
 # open, node 23 stays as isolated bus. The switched runs of this file are in
 # runs_softpv.csv (control "switched") and compared with runs.csv.
@@ -118,7 +158,7 @@ function contract_coupler(src_file, dst_file)
   return dst_file
 end
 
-# the Soft-PV generator of bus `b` after import
+# the Q(U) generator of bus `b` after import
 function soft_gen(net, b)
   g = [ps for ps in net.prosumpsVec if Sparlectra.isGenerator(ps) && Sparlectra.getPosumerBusIndex(ps) == b && Sparlectra.has_qu_controller(ps)]
   length(g) == 1 || error("bus $(b): expected one Q(U) generator, found $(length(g))")
@@ -128,7 +168,7 @@ end
 # --- configurations ------------------------------------------------------------
 
 # the study settings with automatic damping on, for the separately marked
-# rerun of a Soft-PV run that did not converge
+# rerun of a Q(U) run that did not converge
 function damped_config(strategy)
   f = run_config(strategy, true)
   out = joinpath(RESULTS, "configs", "$(strategy)_guard_on_damped.yaml")
@@ -141,9 +181,9 @@ end
 """
     softpv_stability(net, soft) -> rows, (qv_min_eig, qv_min_eig_qu)
 
-dU/dQ at every Soft-PV bus of a solved net. All bus types are held: the
+dU/dQ at every Q(U) bus of a solved net. All bus types are held: the
 reference, the regulated buses on their set point as PV, every other bus
-(the Soft-PV buses included) as PQ with the Q of the solved state; the
+(the Q(U) buses included) as PQ with the Q of the solved state; the
 characteristic is off for the perturbation. Q of the bus is raised by DQ and
 the network solved again (resolve_fixed_types of admissibility.jl). Each row
 also holds the Q of the bus from the solved voltages and the Ybus; `qv_min_eig`
@@ -171,7 +211,7 @@ function softpv_stability(net, soft)
   JR, pq = reduced_jacobian(Y, U0, ref, pv)
   qv_min_eig = minimum(real, eigvals(JR))
   JRinv = inv(JR)
-  # the same matrix with the characteristics on: the Q equation of a Soft-PV
+  # the same matrix with the characteristics on: the Q equation of a Q(U)
   # bus is Q(U) - f(U) = 0, so its diagonal entry loses df/dU (pu/pu, zero
   # where the characteristic is clamped). P(U) is not included.
   JC = copy(JR)
@@ -196,7 +236,7 @@ end
 
 # Smallest real eigenvalue of the reduced Jacobian of a solved net with every
 # machine frozen at its solved Q: only the slack is reference, every other bus
-# is PQ. This is what the check with the characteristic off sees at a Soft-PV
+# is PQ. This is what the check with the characteristic off sees at a Q(U)
 # bus, applied to all regulated buses at once, so a switched solution can be
 # judged the same way.
 function frozen_min_eig(net)
@@ -213,8 +253,8 @@ end
 # --- one run ------------------------------------------------------------------
 
 # Start values. The classic start begins from the voltages stored in the
-# file; exportSCF writes 1.0 pu and 0 degrees at the PQ buses, and a Soft-PV
-# bus is PQ. With start "uset" the Soft-PV buses start on their former set
+# file; exportSCF writes 1.0 pu and 0 degrees at the PQ buses, and a Q(U)
+# bus is PQ. With start "uset" the Q(U) buses start on their former set
 # point, with start "flat" on 1.0 pu.
 function soft_run(v, file, strategy; damped = false, start = "uset")
   cfgfile = damped ? damped_config(strategy) : run_config(strategy, true)
@@ -231,7 +271,7 @@ function soft_run(v, file, strategy; damped = false, start = "uset")
     u = conv ? net.nodeVec[b]._vm_pu : NaN
     q = conv ? first(Sparlectra.evaluate_controller(ps.quController, u)) * base : NaN
     p = conv ? (Sparlectra.has_pu_controller(ps) ? first(Sparlectra.evaluate_controller(ps.puController, u)) * base : something(ps.pVal, 0.0)) : NaN
-    region = !conv ? "-" : u < d.uset - d.du ? "qmax" : u > d.uset + d.du ? "qmin" : "slope"
+    region = conv ? position(d, u) : "-"
     if conv
       # Q of the characteristic against Q from the solved voltages
       abs(q - stab[b].q_ybus) < TOL_Q_MVAR || error("$(file) $(strategy): Q(U) of bus $(b) is $(q) Mvar, the voltages give $(stab[b].q_ybus) Mvar")
@@ -239,11 +279,13 @@ function soft_run(v, file, strategy; damped = false, start = "uset")
     vals[b] = (u = u, q = q, p = p, du = u - d.uset, region = region)
   end
   j(f) = join([f(vals[b]) for b in soft], ";")
-  out = merge(row, (case = v.case, variant = v.variant, file = file, band = v.band, control = v.control, start = start, du_pct = v.du_pct, pu_enabled = v.pu, damped = damped,
-    softpv_buses = join(soft, ";"), softpv_u_pu = j(x -> csvval(x.u)), softpv_q_MVar = j(x -> csvval(x.q)), softpv_p_MW = j(x -> csvval(x.p)),
-    softpv_du_pu = j(x -> csvval(x.du)), softpv_region = j(x -> x.region)))
-  st = [(variant = v.variant, case = v.case, band = v.band, du_pct = v.du_pct, pu_enabled = v.pu, strategy = strategy, start = start, damped = damped,
-    bus = b, name = net.nodeVec[b].comp.cName, region = vals[b].region, u_pu = vals[b].u, uset_pu = v.data[b].uset, q_MVar = vals[b].q,
+  out = merge(row, (case = v.case, variant = v.variant, file = file, band = v.band, control = v.control, start = start, shape = v.shape, du_pct = v.du_pct,
+    du_in_pct = v.k.du_in_pct, du_c_pct = v.k.du_c_pct, delta_pct = v.k.delta_pct, pu_enabled = v.pu, damped = damped,
+    qu_buses = join(soft, ";"), qu_u_pu = j(x -> csvval(x.u)), qu_q_MVar = j(x -> csvval(x.q)), qu_p_MW = j(x -> csvval(x.p)),
+    qu_du_pu = j(x -> csvval(x.du)), qu_position = j(x -> x.region)))
+  st = [(variant = v.variant, case = v.case, band = v.band, shape = v.shape, du_pct = v.du_pct, du_in_pct = v.k.du_in_pct, du_c_pct = v.k.du_c_pct, delta_pct = v.k.delta_pct,
+    pu_enabled = v.pu, strategy = strategy, start = start, damped = damped, bus = b, name = net.nodeVec[b].comp.cName, position = vals[b].region,
+    u_pu = vals[b].u, uset_pu = v.data[b].uset, abs_du_pu = abs(vals[b].du), q_MVar = vals[b].q,
     q_ybus_MVar = stab[b].q_ybus, qmin_MVar = v.data[b].qmin, qmax_MVar = v.data[b].qmax, dudq = stab[b].dudq, dudq_jacobian = stab[b].dudq_jacobian,
     check = stab[b].dudq > 0 ? "pass" : "fail", qv_min_eig = qv_eig, dudq_qu = stab[b].dudq_qu, qv_min_eig_qu = qv_eig_qu) for b in soft if conv]
   tag = (start == "flat" ? "_flat" : "") * (damped ? "_damped" : "")
@@ -254,13 +296,18 @@ end
 
 # --- variants -----------------------------------------------------------------
 
-dutag(x) = replace(@sprintf("%.1f", x), "." => "p")
+dutag(x; digits = 1) = replace(@sprintf("%.*f", digits, x), "." => "p")
 
-function variant(variant, case, srcfile, buses, du_pct, pu, band, bands)
+const NO_K = (du_in_pct = NaN, du_c_pct = NaN, delta_pct = NaN)
+
+# with `k` set: Kataoka shape with these parameters, `du_pct` is not used
+function variant(variant, case, srcfile, buses, du_pct, pu, band, bands; k = NO_K)
+  shape = isnan(k.du_in_pct) ? "droop" : "kataoka"
   net = load_net(srcfile)
   isempty(bands) || set_bands!(net, bands)
-  data = make_softpv!(net, buses, du_pct, pu)
-  file = lowercase(replace(variant, "-" => "")) * (band == "-" ? "" : "_" * band) * "_du" * dutag(du_pct)
+  data = make_softpv!(net, buses, du_pct, pu; shape = shape, k = k)
+  file = shape == "droop" ? lowercase(replace(variant, "-" => "")) * (band == "-" ? "" : "_" * band) * "_du" * dutag(du_pct) :
+    lowercase(replace(variant, "-" => "_")) * "_in" * dutag(k.du_in_pct; digits = 2) * "_c" * dutag(k.du_c_pct)
   exportSCF(net; file = joinpath(SOFT_CASES, file * ".scf.json"))
   # the file must give back the same machines: PQ bus with a characteristic
   chk = load_net(joinpath(SOFT_CASES, file * ".scf.json"))
@@ -268,7 +315,7 @@ function variant(variant, case, srcfile, buses, du_pct, pu, band, bands)
     getNodeType(chk.nodeVec[b]) == Sparlectra.PQ || error("$(file): bus $(b) is not PQ after the SCF round trip")
     soft_gen(chk, b)
   end
-  return (variant = variant, case = case, band = band, control = pu ? "qu_pu" : "qu", du_pct = du_pct, pu = pu, data = data), file
+  return (variant = variant, case = case, band = band, control = pu ? "qu_pu" : "qu", shape = shape, du_pct = shape == "droop" ? du_pct : NaN, k = k, pu = pu, data = data), file
 end
 
 function softpv_main()
@@ -300,8 +347,9 @@ function softpv_main()
   function switched(case, variant, file, band, s)
     row, sol, _, _ = run_case("softpv/" * file, s; guard = true)
     row.converged && write_rows(joinpath(SOFT_SOLUTIONS, "$(file)_$(s).csv"), sol)
-    return merge(row, (case = case, variant = variant, file = file, band = band, control = "switched", start = "classic", du_pct = NaN, pu_enabled = false, damped = false,
-      softpv_buses = "-", softpv_u_pu = "-", softpv_q_MVar = "-", softpv_p_MW = "-", softpv_du_pu = "-", softpv_region = "-"))
+    return merge(row, (case = case, variant = variant, file = file, band = band, control = "switched", start = "classic", shape = "-", du_pct = NaN,
+      du_in_pct = NaN, du_c_pct = NaN, delta_pct = NaN, pu_enabled = false, damped = false,
+      qu_buses = "-", qu_u_pu = "-", qu_q_MVar = "-", qu_p_MW = "-", qu_du_pu = "-", qu_position = "-"))
   end
   # the contracted narrow case with switching, against runs.csv
   for s in STRATEGIES
@@ -350,8 +398,18 @@ function softpv_main()
   end
   c118 = joinpath(CASES, "sp_case118.scf.json")
   runall(variant("118-all", "sp_case118", c118, pv_generator_buses(load_net(c118)), 1.0, false, "-", Dict())..., STRATEGIES)
+
+  # Soft-PV after Kataoka: six characteristics on case14_zeng (three
+  # strategies) and on sp_case60_narrow (active set), one on sp_case118
+  for din in K_DU_IN_PCT, dc in K_DU_C_PCT
+    k = (du_in_pct = din, du_c_pct = dc, delta_pct = K_DELTA_PCT)
+    runall(variant("K-zall", "case14_zeng", zeng, zeng_pv, NaN, false, "-", Dict(); k = k)..., STRATEGIES)
+    runall(variant("K-nband", "sp_case60_narrow", narrow, nbuses, NaN, false, "-", Dict(); k = k)..., ["active_set"])
+  end
+  k118 = (du_in_pct = 0.1, du_c_pct = 2.0, delta_pct = K_DELTA_PCT)
+  runall(variant("K-118", "sp_case118", c118, pv_generator_buses(load_net(c118)), NaN, false, "-", Dict(); k = k118)..., STRATEGIES)
   # the switched active set solutions with every machine frozen at its solved
-  # Q, the reading of qv_min_eig at the Soft-PV buses (characteristic off)
+  # Q, the reading of qv_min_eig at the Q(U) buses (characteristic off)
   frozen = String[]
   for case in ("case14_zeng", "sp_case118")
     r, _, _, fnet = run_case(case, "active_set"; guard = true)
