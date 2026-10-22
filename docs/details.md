@@ -129,7 +129,7 @@ and the final check read the hysteresis from the net (`net.q_hyst_pu`,
 `net.final_q_accept_pu`, import values 0.01 and 0.02 pu). At commit
 a3cd5bc9 `power_flow.qlimits.hysteresis_pu` and `final_q_accept_pu` in the
 config passed to `run_sparlectra` do not reach an imported net; this is
-fixed in 0.60.0. `hyst0.jl` therefore sets both net fields to 0 before the
+fixed for the 0.60.0 release, not at this commit. `hyst0.jl` therefore sets both net fields to 0 before the
 solve (`results/runs_hyst0.csv`, `results/consistency_hyst0.csv`):
 
 - case14_zeng, classic_one_at_a_time: 14 iterations, bus 6 PQ at

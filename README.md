@@ -50,7 +50,7 @@ strategies reach the active set solution (Westtal_110 at 5.5 Mvar and
 0.98833 pu), and on case14_zeng `classic_one_at_a_time` ends in 14
 iterations with bus 6 PQ at 24.000 Mvar and 1.06866 pu. At commit a3cd5bc9
 `power_flow.qlimits.hysteresis_pu` does not take effect on an imported net
-(fixed in 0.60.0), so the script sets the values on the net.
+(fixed for the 0.60.0 release, not at this commit), so the script sets the values on the net.
 
 ## 3. Characteristics instead of switching
 
