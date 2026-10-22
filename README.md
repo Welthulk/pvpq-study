@@ -12,9 +12,9 @@ machines of a narrow reactive band.
 
 | File | Content |
 |---|---|
-| `run_compare.jl` | one network, three strategies, same start values and tolerance; one CSV line per run (`results/runs.csv`), the final solution of every run (`results/solutions/`) |
+| `run_compare.jl` | one network, three strategies, same start values and tolerance; one CSV line per run (`results/runs.csv`), the final solution of every run (`results/solutions/`), the band of the narrow band case (`results/sp_case60_narrow.txt`) and the lock list check (`results/narrow_lock.csv`) |
 | `compare.jl` | pairwise comparison of the final solutions (`results/pairs.csv`) and the decision rule for the main figure (`results/decision.txt`) |
-| `figures.jl` | figures as PNG, 1200 x 627 px |
+| `figures.jl` | figures as PNG, 1200 x 627 px, drawn offscreen (`GKSwstype=100`) |
 | `reproduce.jl` | everything above from a fresh checkout |
 | `config/base.yaml` | settings of every run; per run the strategy and the guard are added (`results/configs/`) |
 | `cases/` | the networks as SCF files, written by `run_compare.jl` |
@@ -22,7 +22,8 @@ machines of a narrow reactive band.
 Networks: `case14_zeng` (the case of Zeng and Chiang as shipped with
 Sparlectra, `data/scf/case14_zeng_p306_activeSet_A.scf.json`), `sp_case14`,
 `sp_case118` (`data/mpower/sp_case118.m`, converted to SCF), and
-`sp_case60_narrow`, a copy of `sp_case60` in which the two 40 MW machines
+`sp_case60_narrow`, a copy of `sp_case60` (`cases/sp_case60.scf.json`, as
+shipped with Sparlectra) in which the two 40 MW machines
 with a voltage regulator (generators 159 and 160) get a reactive band of
 4.0 to 5.5 Mvar, 0.015 pu at 100 MVA (`results/sp_case60_narrow.txt`).
 
@@ -62,13 +63,21 @@ winget install --name Julia --id 9NJNWW8PVKMN -e -s msstore
 ```
 
 Open a new terminal afterwards. The manifest was resolved with Julia 1.13.2
-(`julia_version` in `Manifest.toml`), use that version:
+(`julia_version` in `Manifest.toml`), use that version. Check it with
+
+```
+julia --version
+```
+
+Only if it does not show 1.13.2:
 
 ```
 juliaup add 1.13.2
 juliaup default 1.13.2
-julia --version
 ```
+
+`juliaup default` changes the default Julia of your user account. To keep
+it, start the study with `julia +1.13.2` instead of `julia`.
 
 Sparlectra itself needs Julia 1.12 or later. With a version other than
 1.13.2 Pkg warns about the manifest and may resolve other package versions;
@@ -86,7 +95,8 @@ Needed to clone this repository.
 ### 3. Get the study
 
 The repository is private; your GitHub account needs read access. Over
-HTTPS git asks for the user name and a personal access token, over SSH it
+HTTPS git asks for the user name and a personal access token, unless a
+credential helper is set up (for example by `gh auth login`); over SSH it
 uses your SSH key:
 
 ```
@@ -98,6 +108,14 @@ or
 
 ```
 git clone git@github.com:Welthulk/pvpq-study.git
+cd pvpq-study
+```
+
+or with the GitHub CLI, which handles the login:
+
+```
+gh auth login
+gh repo clone Welthulk/pvpq-study
 cd pvpq-study
 ```
 
@@ -125,19 +143,20 @@ deletes `results/` and writes it new: `runs.csv`, `pairs.csv`,
 `decision.txt`, `narrow_lock.csv`, `sp_case60_narrow.txt`, the final
 solutions in `results/solutions/`, the configuration of every run in
 `results/configs/`, and the two figures. It also rewrites the networks in
-`cases/`. It took 62 s on the first run after installation and 55 s on a
-later run (same machine and Julia version as above).
+`cases/`. Two runs one after the other took 64 s and 63 s (same machine
+and Julia version as above).
 
-Check: run it twice and look at
+Check: after a run, look at
 
 ```
 git status --short results/ cases/
 ```
 
-It shows nothing: the CSV files are identical to the committed ones. On the
-machine above the PNG files were byte-identical too; on another machine
-(fonts, graphics library) they may differ in bytes without any change in
-the numbers.
+It shows nothing: every file, the PNGs included, is identical to the
+committed one. On the machine above this held in two runs of `reproduce.jl`
+and three runs of `figures.jl` alone, in a Wayland desktop session. On
+another machine (fonts, graphics library) the PNGs may differ in bytes; the
+CSV files must not.
 
 ### Updating later
 
@@ -167,8 +186,10 @@ the numbers.
 - The first `Pkg.instantiate()` and the first run are slow because packages
   are precompiled (about a minute here, longer on slower machines). Later
   runs use the compile cache.
-- Under a `C` locale the plotting library prints a Qt message about
-  switching to `C.UTF-8`. It does not affect the results.
+- `GKS: Open failed` or a Qt message (`qt.qpa`, locale switched to
+  `C.UTF-8`): GR has tried to open a window, and the PNGs can come out with
+  another layout (title cut off). `figures.jl` sets `GKSwstype=100` before
+  `using Plots` to prevent this.
 
 ## Results
 

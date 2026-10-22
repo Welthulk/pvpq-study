@@ -7,6 +7,11 @@
 #
 # usage: julia --project=. figures.jl   (after compare.jl)
 
+# GR draws offscreen. Without this, on a desktop session (Wayland, X11) GR
+# tries to open a Qt window first; when that fails ("GKS: Open failed") the
+# PNG still gets written, but with another layout (title cut off in 5b).
+ENV["GKSwstype"] = "100"
+
 using Plots
 using PNGFiles
 gr()
