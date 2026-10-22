@@ -19,7 +19,9 @@
 # characteristics in extra.<machine>.qu_control / pu_control) and solved from
 # that file. Writes results/runs_softpv.csv, the final solutions to
 # results/solutions/softpv/ and the perturbation check dU/dQ at every Q(U)
-# bus to results/stability_softpv.csv; results/frozen_softpv.txt holds the
+# bus to results/stability_softpv.csv. The physical check of every run
+# (admissibility.jl, at the buses that still regulate their voltage) goes to
+# results/consistency_softpv.csv. results/frozen_softpv.txt holds the
 # switched active set solutions with every machine frozen at its solved Q.
 #
 # usage: julia --project=. softpv.jl   (after run_compare.jl)
@@ -259,7 +261,7 @@ end
 function soft_run(v, file, strategy; damped = false, start = "uset")
   cfgfile = damped ? damped_config(strategy) : run_config(strategy, true)
   prepare(net) = start == "uset" ? foreach(b -> (net.nodeVec[b]._vm_pu = v.data[b].uset), keys(v.data)) : nothing
-  row, sol, _, net = run_case("softpv/" * file, strategy; guard = true, cfgfile = cfgfile, prepare = prepare)
+  row, sol, adm, net = run_case("softpv/" * file, strategy; guard = true, cfgfile = cfgfile, prepare = prepare)
   conv = row.converged
   soft = sort(collect(keys(v.data)))
   base = net.baseMVA
@@ -291,7 +293,8 @@ function soft_run(v, file, strategy; damped = false, start = "uset")
   tag = (start == "flat" ? "_flat" : "") * (damped ? "_damped" : "")
   # a run that did not converge leaves an iterate, not a solution
   conv && write_rows(joinpath(SOFT_SOLUTIONS, "$(file)_$(strategy)$(tag).csv"), sol)
-  return out, st
+  cons = [merge((variant = v.variant, file = file, start = start, damped = damped), a) for a in adm]
+  return out, st, cons
 end
 
 # --- variants -----------------------------------------------------------------
@@ -325,16 +328,19 @@ function softpv_main()
   mkpath(SOFT_SOLUTIONS)
   rows = []
   stab = []
+  cons = []
   # every run that does not converge is repeated with damping, marked damped
   function runall(v, file, strategies; starts = ["uset"])
     for start in starts, s in strategies
-      r, st = soft_run(v, file, s; start = start)
+      r, st, c = soft_run(v, file, s; start = start)
       push!(rows, r)
       append!(stab, st)
+      append!(cons, c)
       if !r.converged
-        r, st = soft_run(v, file, s; damped = true, start = start)
+        r, st, c = soft_run(v, file, s; damped = true, start = start)
         push!(rows, r)
         append!(stab, st)
+        append!(cons, c)
       end
     end
   end
@@ -345,8 +351,9 @@ function softpv_main()
   nbuses = [scf_gen_bus(c60, g) for g in NARROW_GENERATORS]
   # a run with PV/PQ switching on a file of cases/softpv
   function switched(case, variant, file, band, s)
-    row, sol, _, _ = run_case("softpv/" * file, s; guard = true)
+    row, sol, adm, _ = run_case("softpv/" * file, s; guard = true)
     row.converged && write_rows(joinpath(SOFT_SOLUTIONS, "$(file)_$(s).csv"), sol)
+    append!(cons, [merge((variant = variant, file = file, start = "classic", damped = false), a) for a in adm])
     return merge(row, (case = case, variant = variant, file = file, band = band, control = "switched", start = "classic", shape = "-", du_pct = NaN,
       du_in_pct = NaN, du_c_pct = NaN, delta_pct = NaN, pu_enabled = false, damped = false,
       qu_buses = "-", qu_u_pu = "-", qu_q_MVar = "-", qu_p_MW = "-", qu_du_pu = "-", qu_position = "-"))
@@ -426,6 +433,7 @@ function softpv_main()
   cols = keys(first(rows))
   write_rows(joinpath(RESULTS, "runs_softpv.csv"), [NamedTuple{cols}(r) for r in rows])
   write_rows(joinpath(RESULTS, "stability_softpv.csv"), stab)
+  write_rows(joinpath(RESULTS, "consistency_softpv.csv"), cons)
   println("softpv: ", length(rows), " runs, results/runs_softpv.csv")
 end
 

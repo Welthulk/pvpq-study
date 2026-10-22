@@ -86,9 +86,11 @@ julia reproduce.jl
 `reproduce.jl` runs `Pkg.instantiate()` again (fast once installed),
 deletes `results/` and writes it new: `runs.csv`, `pairs.csv`,
 `decision.txt`, `narrow_lock.csv`, `consistency.csv`,
-`sp_case60_narrow.txt`, the Q(U) files (`runs_softpv.csv`,
+`sp_case60_narrow.txt`, the runs with Q hysteresis 0 (`runs_hyst0.csv`,
+`consistency_hyst0.csv`), the Q(U) files (`runs_softpv.csv`,
 `pairs_softpv.csv`, `h2_softpv.txt`, `stability_softpv.csv`,
-`frozen_softpv.txt`, `softpv_bands.txt`), the final solutions in
+`consistency_softpv.csv`, `frozen_softpv.txt`, `softpv_bands.txt`), the
+final solutions in
 `results/solutions/`, the configuration of every run in `results/configs/`
 and the five figures. It also rewrites the networks in `cases/`.
 

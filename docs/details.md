@@ -11,7 +11,7 @@ Every file, setting and run of the study. The short version is the
 | `admissibility.jl` | the physical check, called by `run_compare.jl` and `hyst0.jl` for every solved run |
 | `hyst0.jl` | case14_zeng and sp_case60_narrow with Q hysteresis 0, set on the net, three strategies with the guard (`results/runs_hyst0.csv`, columns of `runs.csv`; `results/consistency_hyst0.csv`, columns of `consistency.csv`) |
 | `compare.jl` | pairwise comparison of the final solutions (`results/pairs.csv`) and the decision rule for the main figure (`results/decision.txt`) |
-| `softpv.jl` | Q(U) droop, P(U) and Soft-PV after Kataoka instead of the voltage regulator of chosen generators (`results/runs_softpv.csv`, `results/stability_softpv.csv`, `results/frozen_softpv.txt`, `results/solutions/softpv/`, `results/softpv_bands.txt`) |
+| `softpv.jl` | Q(U) droop, P(U) and Soft-PV after Kataoka instead of the voltage regulator of chosen generators (`results/runs_softpv.csv`, `results/stability_softpv.csv`, `results/consistency_softpv.csv`, `results/frozen_softpv.txt`, `results/solutions/softpv/`, `results/softpv_bands.txt`) |
 | `compare_softpv.jl` | Q(U) solutions against the switched ones (`results/pairs_softpv.csv`, `results/h2_softpv.txt`) |
 | `figures.jl` | figures as PNG, 1200 x 627 px, drawn offscreen (`GKSwstype=100`) |
 | `reproduce.jl` | everything above from a fresh checkout |
@@ -198,7 +198,10 @@ kept in `q_report_MVar`. The only closed coupler in sp_case60_narrow joins
 Neubach_110 and Neubach_110b. At Birkkamp_110, a PV bus at its upper limit
 and not at a coupler, the Sparlectra report of the two classic strategies
 gives 7.258 Mvar generator Q; the voltages give 5.500 Mvar. The active set
-report agrees with the voltages.
+report agrees with the voltages. With hysteresis 0
+(`consistency_hyst0.csv`) the classic reports differ at Westtal_110 as
+well: 5.711 Mvar (classic_simultaneous) and 6.136 Mvar
+(classic_one_at_a_time), the voltages give 5.500 Mvar.
 
 The tolerances are constants in `admissibility.jl`, chosen here; the paper
 gives none.
@@ -304,8 +307,10 @@ the Kataoka parameters, P(U) on, damped, and per Q(U) bus U, Q, P,
 U - U_set and the position on the characteristic, separated by `;`:
 `clamp_max`, `slope`, `clamp_min` for the droop), `pairs_softpv.csv` (every converged Q(U) solution against every
 converged switched solution of the same network), `h2_softpv.txt`,
-`stability_softpv.csv` (per bus, with position and |U - U_set|),
-`frozen_softpv.txt`, the solutions in
+`stability_softpv.csv` (per Q(U) bus, with position and |U - U_set|),
+`consistency_softpv.csv` (the physical check of every run at the buses
+that still regulate their voltage, columns of `consistency.csv` after
+variant, file, start and damped), `frozen_softpv.txt`, the solutions in
 `results/solutions/softpv/`.
 
 Perturbation check (`stability_softpv.csv`), as check (c): bus types held,
@@ -349,7 +354,8 @@ solution (6, 9, 9 iterations), both machines on the slope. At dU 0.5 %
 classic_simultaneous does not converge, at dU 1 % classic_one_at_a_time;
 both reach damped a solution with U 0.850 and 0.891 pu at buses 2 and 6,
 dU/dQ -0.82 and -0.43, smallest eigenvalue -0.13, and 2 inconsistent
-buses. The other two strategies agree within 1e-8 pu.
+buses: the PV buses 1 (Q_min, 0.879 pu) and 3 (Q_max, 0.807 pu), both with
+dU/dQ below 0 (`consistency_softpv.csv`). The other two strategies agree within 1e-8 pu.
 
 Z-one, start `flat`: at dU 0.5 % the active set does not converge, also
 damped (80 iterations); classic_simultaneous reaches the low-voltage
